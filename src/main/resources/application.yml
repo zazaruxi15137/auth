@@ -1,0 +1,44 @@
+server:
+    port: 8080
+    error:
+        path: /api/auth/error
+spring:
+    redis:
+        data:
+            host: localhost       # Redis 服务器地址
+            port: 6379            # Redis 端口
+            password:             # 如果有密码则填写
+            database: 0           # 选择数据库 0-15
+            timeout: 6000ms       # 连接超时
+            lettuce:
+            pool:
+                max-active: 20    # 最大连接数
+                max-wait: 1000ms  # 最大等待时间
+                max-idle: 10      # 最大空闲连接
+                min-idle: 5       # 最小空闲连接
+    datasource:
+        url: jdbc:postgresql://localhost:5432/rednote
+        username: postgres 
+        password: 3504554534
+        driver-class-name: org.postgresql.Driver
+        tomcat:
+            max-wait: 10000
+            max-active: 50
+            max-idle: 25
+            min-idle: 5
+    jpa:
+        hibernate: 
+            dialect: org.hibernate.dialect.PostgreSQLDialect
+            ddl-auto: update
+        show-sql: true
+        properties:
+            hibernate:
+                format_sql: true
+jwt:
+    secret: bqK5v1EisVgkzGk4xUOkV0Q5nlf4X3Wg0ApnMduFwb8=
+    expiration: 3600
+    header: Authorization
+    prefix: Bearer 
+    token-type: JWT
+    issuer: rednote
+    audience: rednote-user
