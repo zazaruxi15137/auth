@@ -22,7 +22,7 @@ public class UserService implements UserDetailsService{
     private UserRepository userRepository;
     @Autowired
     private RedisUtil redisUtil;
-    @Value("${jwt.expiration}")
+    @Value("${spring.redis.expiration}")
     private long expiration; // Token过期时间，单位为秒
     /**
      * 新用户注册
@@ -34,27 +34,36 @@ public class UserService implements UserDetailsService{
         if (existsByEmail(user.getEmail()) || existsByUsername(user.getUsername())) {
             throw new CustomException("用户名或邮箱已存在");
         }
-        user.setRoles("USER");
+        user.setRoles("USER"); // 默认角色为 USER
 
         return userRepository.save(user); 
     }
 
-    /**
-     * 更新用户信息
-     * @param user 用户数据
-     * @return 更新后的用户实体
-     */
-    public User updateUser(User user) {
-        if (user.getId() == null || !userRepository.existsById(user.getId())) {
-            throw new CustomException("用户不存在");
+    public User registerUserWithRoles(User user, String roles) {
+        if (existsByEmail(user.getEmail()) || existsByUsername(user.getUsername())) {
+            throw new CustomException("用户名或邮箱已存在");
         }
-        User oldUser = userRepository.findById(user.getId()).orElseThrow(() -> new CustomException("用户不存在"));
-        if (existsByEmail(user.getEmail()) && !oldUser.getId().equals(user.getId())) {
-            throw new CustomException("邮箱已被其他用户使用");
-        }
-        user.setRoles(oldUser.getRoles());
-        return userRepository.save(user);
+        user.setRoles(roles);
+
+        return userRepository.save(user); 
     }
+
+    // /**
+    //  * 更新用户信息
+    //  * @param user 用户数据
+    //  * @return 更新后的用户实体
+    //  */
+    // public User updateUser(User user) {
+    //     if (user.getId() == null || !userRepository.existsById(user.getId())) {
+    //         throw new CustomException("用户不存在");
+    //     }
+    //     User oldUser = userRepository.findById(user.getId()).orElseThrow(() -> new CustomException("用户不存在"));
+    //     if (existsByEmail(user.getEmail()) && !oldUser.getId().equals(user.getId())) {
+    //         throw new CustomException("邮箱已被其他用户使用");
+    //     }
+    //     user.setRoles(oldUser.getRoles());
+    //     return userRepository.save(user);
+    // }
 
     /**
      * 检查用户ID是否存在
@@ -125,12 +134,10 @@ public class UserService implements UserDetailsService{
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        System.out.println("加载用户: " + username);
+
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UsernameNotFoundException("用户不存在: " + username));
-        System.out.println("找到用户: " + user.getId() + ", 角色: " + user.getRoles());
-        
-        redisUtil.set("user:" + user.getUsername(), user, expiration, TimeUnit.SECONDS);
+        redisUtil.set(user.getUsername(), user.toLoginUserDto(), expiration, TimeUnit.SECONDS);
         return org.springframework.security.core.userdetails.User
                 .withUsername(user.getUsername())
                 .password(user.getPassword())

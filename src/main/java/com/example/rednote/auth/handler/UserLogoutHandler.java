@@ -15,7 +15,9 @@ import org.springframework.stereotype.Component;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Component
 public class UserLogoutHandler implements LogoutHandler {
 
@@ -30,7 +32,7 @@ public class UserLogoutHandler implements LogoutHandler {
             String username = SecurityContextHolder.getContext().getAuthentication().getName();
             // 清除用户的认证信息
             redisUtil.delete("user:" + username);
-            // 这里可以添加其他清理操作，比如记录日志等
+            log.info("用户 {} 已登出", username);
         }
         
     }

@@ -6,28 +6,29 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import java.io.Serializable;
+import jakarta.persistence.Entity;
 import jakarta.validation.constraints.Email;
+import jakarta.persistence.Id;
 
 @AllArgsConstructor
 @NoArgsConstructor
 @Setter
 @Getter
-public class UserDto {
-
+@Entity
+public class UserDto implements Serializable {
+    @Id
     private Long id;
 
     @NotBlank
-    @Size(min = 3, max = 200)
-    private String password;
-
-    @NotBlank
-    @Size(min = 3, max = 20)
     private String username;
 
     @NotBlank
     @Email  
     private String email;
 
+    @NotBlank
+    private String roles;
 
-
+    private String token;
 }
