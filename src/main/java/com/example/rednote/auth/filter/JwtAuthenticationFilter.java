@@ -65,12 +65,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             JwtUserDto jwtUserDto=null;
             // 从token中解析用户信息
             try {
+                
                 Claims claims = jwtUtil.parserJWT(token);
                 jti=claims.getId();
                 jwtUserDto = serializaUtil.fromJson(claims.getSubject(), JwtUserDto.class);
+                if(!redisUtil.refreshExpire(loginHeader+jti, expiration, TimeUnit.SECONDS)){
+                log.info("会话已断开");
+                writeError(response,401,"会话已断开，请重新登录");
+                return;
+                }
             }catch (JwtException exception){
-                log.warn("token错误{}",exception);
-                writeError(response,401,"token错误");
+                log.warn("token错误{}",exception.getMessage());
+                writeError(response,401,"token错误或者已过期");
                 return;
             }catch(JsonProcessingException e){
                 log.error("Json反序列化失败{}",e.getMessage());
@@ -78,7 +84,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 return;
             }
             catch (Exception e) {
-                log.warn("jwt验证:"+e);
+                log.warn("jwt验证:"+e.getMessage());
                 writeError(response,401,"jwt验证:"+e);
                 return;
             }
