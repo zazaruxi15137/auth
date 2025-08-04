@@ -1,35 +1,28 @@
 package com.example.rednote.auth.dto;
 
-import jakarta.persistence.Entity;
+
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
-import lombok.Getter;
-import lombok.Setter;
-import lombok.ToString;
-import lombok.NoArgsConstructor;
-import lombok.AllArgsConstructor;
+import lombok.Data;
 import com.example.rednote.auth.entity.User;
+
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.persistence.Id;
 
 
-@Entity
-@Getter
-@Setter
-@ToString
-@NoArgsConstructor
-@AllArgsConstructor
-public class RegisterUserDto {
-    @Id
-    private Long id;
 
+@Data
+public class RegisterUserDto {
+    @Schema(description = "用户名", example = "zhangsan")
     @NotBlank
     @Size(min = 6, max = 20)
     private String username;
     @NotBlank
+    @Schema(description = "密码", example = "******")
     @Size(min = 6, max = 20)
     private String password;
-    
+    @Schema(description = "邮箱", example = "test@domain.com")
     @Email
     private String email;
 
@@ -38,8 +31,6 @@ public class RegisterUserDto {
         user.setUsername(this.username);
         user.setPassword(this.password);
         user.setEmail(this.email);
-        // 默认角色为 USER
-        user.setRoles("USER");
         return user;
     }
 

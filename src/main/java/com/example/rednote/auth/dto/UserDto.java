@@ -1,21 +1,15 @@
 package com.example.rednote.auth.dto;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.Data;
+
 import java.io.Serializable;
-import jakarta.persistence.Entity;
+import java.util.List;
+
 import jakarta.validation.constraints.Email;
 import jakarta.persistence.Id;
 
-@AllArgsConstructor
-@NoArgsConstructor
-@Setter
-@Getter
-@Entity
+@Data
 public class UserDto implements Serializable {
     @Id
     private Long id;
@@ -31,4 +25,6 @@ public class UserDto implements Serializable {
     private String roles;
 
     private String token;
+
+    private List<String> permssion;
 }

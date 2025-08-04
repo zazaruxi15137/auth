@@ -21,7 +21,7 @@ public class UserAuthenticationEntryPoint  implements AuthenticationEntryPoint {
     public void commence(HttpServletRequest request, HttpServletResponse response,
                          AuthenticationException authException) throws java.io.IOException {
         response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-        log.warn("匿名操作", authException.getMessage());
+        log.warn("匿名操作{}{}", authException.getMessage(),request.getContextPath());
         response.setContentType("application/json;charset=UTF-8");
         Map<String, Object> responseBody = new HashMap<>();
         responseBody.put("code", 401);

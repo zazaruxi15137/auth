@@ -15,11 +15,15 @@ import java.util.Map;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import com.example.rednote.auth.exception.CustomException;
 import com.example.rednote.auth.tool.RespondMessage;
+import com.fasterxml.jackson.core.JsonProcessingException;
+
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import io.jsonwebtoken.security.SignatureException;
+import io.swagger.v3.oas.annotations.Hidden;
 import lombok.extern.slf4j.Slf4j;
+@Hidden
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
@@ -119,14 +123,21 @@ public class GlobalExceptionHandler {
         , HttpStatus.BAD_REQUEST.value()
         , null);
     }
+    @ExceptionHandler(JsonProcessingException.class)
+    public RespondMessage<String> handleJsonProcessingException(JsonProcessingException ex) {
+        log.error("实体转化为Json失败{}", ex.getMessage());
+        return new RespondMessage<>("服务器内部错误"
+        , HttpStatus.BAD_REQUEST.value()
+        , null);
+    }
     /**
      * 处理所有其他未捕获异常
      */
-    @ExceptionHandler(Exception.class)
-    public RespondMessage<String> handleException(Exception ex) {
-        log.error("错误: {}", ex.getClass().getName() + ": " + ex.getMessage());
-        return new RespondMessage<>("错误"
-                        , HttpStatus.BAD_REQUEST.value()
-                        ,  ex.getMessage());
-    }
+    // @ExceptionHandler(Exception.class)
+    // public RespondMessage<String> handleException(Exception ex) {
+    //     log.error("错误: {}", ex.getClass().getName() + ": " + ex.getMessage());
+    //     return new RespondMessage<>("错误"
+    //                     , HttpStatus.BAD_REQUEST.value()
+    //                     ,  ex.getMessage());
+    // }
 }

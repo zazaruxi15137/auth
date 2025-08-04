@@ -7,6 +7,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.stereotype.Component;
+
+import com.example.rednote.auth.dto.JwtUserDto;
+import com.example.rednote.auth.dto.LoginUserDto;
+import com.example.rednote.auth.dto.UserDto;
+import com.fasterxml.jackson.core.JsonProcessingException;
+
 import org.springframework.beans.factory.annotation.Value;
 import java.security.Key;
 import java.util.Date;
@@ -18,21 +24,23 @@ public class JwtUtil {
     @Value("${jwt.secret}")
     private String secretKey;
     private Key key;
+    private final SerializaUtil serializaUtil;
 
    @PostConstruct
     public void init() {
         this.key = Keys.hmacShaKeyFor(secretKey.getBytes());
     }
-    public String generateToken(String username, long expiration) {
+    public String generateToken(String jti,JwtUserDto jwtuserDto, long expiration)throws JsonProcessingException {
         return Jwts.builder()
-                .setSubject(username)
+                .setSubject(serializaUtil.toJson(jwtuserDto))
                 .setExpiration(new Date(System.currentTimeMillis() + expiration * 1000L)) // 转换为毫秒
                 .setIssuedAt(new Date())
-                .setId(UUID.randomUUID().toString())
+                .setId(jti)
                 // .setExpiration(new Date(System.currentTimeMillis() + expiration))
                 .signWith(key, SignatureAlgorithm.HS256)
                 .compact();
     }
+ 
 
 
     public Claims parseClaims(String token){

@@ -5,6 +5,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -47,6 +48,11 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                     .requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/auth/login").permitAll()// 允许注册和登录接口匿名访问
                     .requestMatchers("/api/auth/error", "/error").permitAll() // 允许错误处理接口匿名访问
+                    .requestMatchers(
+                        "/swagger-ui/**",
+                        "/v3/api-docs",
+                        "/v3/api-docs/**",
+                        "/swagger-ui.html").permitAll()
                     .anyRequest().authenticated()) // 其他请求需要认证
             .addFilterBefore(jwtAuthenticationFilter, LogoutFilter.class)
             .userDetailsService(userService)

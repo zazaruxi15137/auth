@@ -55,8 +55,6 @@ public class User implements Serializable {
         loginUserDto.setId(this.id);
         loginUserDto.setUsername(this.username);
         loginUserDto.setPassword(this.password);
-        
-        loginUserDto.setRoles(this.roles);
         return loginUserDto;
     }
 

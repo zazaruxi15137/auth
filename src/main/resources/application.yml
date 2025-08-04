@@ -6,7 +6,7 @@ spring:
     jackson:
         default-property-inclusion: NON_NULL
     redis:
-        expiration: 3600 #秒
+        expiration: 1800 #秒
         data:
             host: localhost       # Redis 服务器地址
             port: 6379            # Redis 端口
@@ -33,15 +33,29 @@ spring:
         hibernate: 
             dialect: org.hibernate.dialect.PostgreSQLDialect
             ddl-auto: update
-        show-sql: true
+        # show-sql: true
         properties:
             hibernate:
                 format_sql: true
 jwt:
     secret: bqK5v1EisVgkzGk4xUOkV0Q5nlf4X3Wg0ApnMduFwb8=
-    expiration: 72000  #seconds
+    expiration: 3600  #seconds
     header: Authorization
     prefix: Bearer 
     token-type: JWT
     issuer: rednote
     audience: rednote-user
+    loginHeader: "login:user:"
+    blackTokenHeader: "setex jwt:blacklist:"
+role:
+    separator: ":"
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+  info:
+    title: 示例API
+    description: 这是你的API说明
+    version: v1.0
