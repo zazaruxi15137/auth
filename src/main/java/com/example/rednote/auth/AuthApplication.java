@@ -2,8 +2,6 @@ package com.example.rednote.auth;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
-@EnableJpaRepositories("com.example.rednote.auth.repository")
 @SpringBootApplication
 public class AuthApplication {
 

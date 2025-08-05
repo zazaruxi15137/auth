@@ -5,7 +5,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
-import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -14,12 +13,13 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.logout.LogoutFilter;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import com.example.rednote.auth.filter.JwtAuthenticationFilter;
-import com.example.rednote.auth.handler.MyLogoutSuccessfulHandler;
-import com.example.rednote.auth.handler.UserAccessDeniedHandler;
-import com.example.rednote.auth.handler.UserAuthenticationEntryPoint;
-import com.example.rednote.auth.handler.UserLogoutHandler;
-import com.example.rednote.auth.service.UserService;
+import com.example.rednote.auth.security.filter.JwtAuthenticationFilter;
+import com.example.rednote.auth.security.handler.MyLogoutSuccessfulHandler;
+import com.example.rednote.auth.security.handler.UserAccessDeniedHandler;
+import com.example.rednote.auth.security.handler.UserAuthenticationEntryPoint;
+import com.example.rednote.auth.security.handler.UserLogoutHandler;
+import com.example.rednote.auth.security.service.MyUserDetailsService;
+
 import lombok.RequiredArgsConstructor;
 
 @Configuration
@@ -28,7 +28,7 @@ import lombok.RequiredArgsConstructor;
 @EnableMethodSecurity(prePostEnabled = true) 
 public class SecurityConfig {
 
-    private final UserService userService;
+    private final MyUserDetailsService myUserDetailsService;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final UserAccessDeniedHandler userAccessDeniedHandler;
     private final UserAuthenticationEntryPoint userAuthenticationEntryPoint;
@@ -55,7 +55,7 @@ public class SecurityConfig {
                         "/swagger-ui.html").permitAll()
                     .anyRequest().authenticated()) // 其他请求需要认证
             .addFilterBefore(jwtAuthenticationFilter, LogoutFilter.class)
-            .userDetailsService(userService)
+            .userDetailsService(myUserDetailsService)
             .exceptionHandling(e -> e
                     .accessDeniedHandler(userAccessDeniedHandler)
                     .authenticationEntryPoint(userAuthenticationEntryPoint))
@@ -67,16 +67,6 @@ public class SecurityConfig {
 
         return http.build();
     }
-
-    // @Bean
-    // public DaoAuthenticationProvider daoAuthenticationProvider() {
-       
-    //     DaoAuthenticationProvider provider= new DaoAuthenticationProvider(userService);
-    //     provider.setPasswordEncoder(passwordEncoder());
-    //     return provider; 
-    // }
- 
-    
 
     /**
      * 配置密码加密器
