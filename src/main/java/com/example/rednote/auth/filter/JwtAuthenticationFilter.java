@@ -27,6 +27,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.beans.factory.annotation.Value;
 import com.example.rednote.auth.tool.SerializaUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;
+
+import java.util.Date;
 import java.util.concurrent.TimeUnit;
 import com.example.rednote.auth.dto.JwtUserDto;
 import java.io.IOException;
@@ -48,82 +50,77 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private String loginHeader;
     @Value("${jwt.blackTokenHeader}")
     private String blackTokenHeader;
-
+    @Value("${spring.redis.userTokenSetHeader}")
+    private String userTokenSetHeader;
     private final JwtUtil jwtUtil;
     private final RedisUtil redisUtil;
     private final SerializaUtil serializaUtil;
     
 
+    
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
         String header = request.getHeader(requestHeader);
-        // 检查token是否符合要求
-        if (header != null && header.startsWith(prefix)) {
-            String token = header.substring(prefix.length());
-            String jti=null;
-            JwtUserDto jwtUserDto=null;
-            // 从token中解析用户信息
-            try {
-                
-                Claims claims = jwtUtil.parserJWT(token);
-                jti=claims.getId();
-                jwtUserDto = serializaUtil.fromJson(claims.getSubject(), JwtUserDto.class);
-                if(!redisUtil.refreshExpire(loginHeader+jti, expiration, TimeUnit.SECONDS)){
-                log.info("会话已断开");
-                writeError(response,401,"会话已断开，请重新登录");
-                return;
-                }
-            }catch (JwtException exception){
-                log.warn("token错误{}",exception.getMessage());
-                writeError(response,401,"token错误或者已过期");
-                return;
-            }catch(JsonProcessingException e){
-                log.error("Json反序列化失败{}",e.getMessage());
-                writeError(response,401,"服务器内部错误");
-                return;
-            }
-            catch (Exception e) {
-                log.warn("jwt验证:"+e.getMessage());
-                writeError(response,401,"jwt验证:"+e);
-                return;
-            }
-            // 检查token是否在黑名单中
-            if(redisUtil.hasKey(blackTokenHeader+jti)){
-                log.info("尝试使用黑名单token访问");
-                writeError(response,401,"登录失效，请重新登录");
-                return;
-            }
-            // token中解析出有用的信息且未经过认证
-            else if (jwtUserDto!=null
-            && SecurityContextHolder.getContext().getAuthentication() == null
-            ) {
-                // 刷新token过期时间
-                // 从Redis中获取用户信息
-                try {
-                String[] authorities = jwtUserDto.getPermission() == null
-                    ? new String[0] : jwtUserDto.getPermission().toArray(new String[0]);
-                UserDetails userDetails = org.springframework.security.core.userdetails.User
-                    .withUsername(jwtUserDto.getUsername())
-                    .password("") // 或null
-                    .authorities(authorities)
-                    .build();
-                // 3. 构造认证信息放入上下文
-                UsernamePasswordAuthenticationToken authToken =
-                    new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
-                authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                SecurityContextHolder.getContext().setAuthentication(authToken);
-                }
-                catch (Exception e) {
-                    log.warn("权限认证失败: {}",e.getMessage());
-                    writeError(response,401,"内部错误，请尝试重新登录");
-                    return;
-                }
-            }
+        if (header == null || !header.startsWith(prefix)) {
+            chain.doFilter(request, response);
+            return;
         }
-        // 继续过滤链
+
+        String token = header.substring(prefix.length());
+        Claims claims = null;
+        JwtUserDto jwtUserDto = null;
+        String jti = null;
+
+        try {
+            claims = jwtUtil.parserJWT(token);
+            jti = claims.getId();
+            Date exp = claims.getExpiration();
+            jwtUserDto = serializaUtil.fromJson(claims.getSubject(), JwtUserDto.class);
+
+            // 黑名单提前校验
+            if (redisUtil.hasKey(blackTokenHeader + jti)) {
+                writeError(response, 401, "登录失效，请重新登录");
+                return;
+            }
+
+            long tokenExpireSec = (exp.getTime() - System.currentTimeMillis()) / 1000L;
+            long expireSec = Math.min(expiration, tokenExpireSec);
+            if (!redisUtil.refreshExpireToken(loginHeader + jti, userTokenSetHeader + jwtUserDto.getId(), expireSec, TimeUnit.SECONDS)) {
+                log.info("用户{},id{}的会话已断开，请重新登录",jwtUserDto.getUsername(),jwtUserDto.getId());
+                writeError(response, 401, "会话已断开，请重新登录");
+                return;
+            }
+
+        } catch (ExpiredJwtException | UnsupportedJwtException | MalformedJwtException | SignatureException e) {
+            writeError(response, 401, "token错误或者已过期");
+            return;
+        } catch (JsonProcessingException e) {
+            log.error("服务器内部错误{}", e.getMessage());
+            writeError(response, 500, "服务器内部错误");
+            return;
+        } catch (Exception e) {
+            writeError(response, 401, "jwt验证失败: " + e.getMessage());
+            return;
+        }
+
+        if (jwtUserDto != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+            String[] authorities = jwtUserDto.getPermission() == null
+                ? new String[0] : jwtUserDto.getPermission().toArray(new String[0]);
+            UserDetails userDetails = org.springframework.security.core.userdetails.User
+                .withUsername(jwtUserDto.getUsername())
+                .password("")
+                .authorities(authorities)
+                .build();
+            UsernamePasswordAuthenticationToken authToken =
+                new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+            authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+            SecurityContextHolder.getContext().setAuthentication(authToken);
+        }
+
         chain.doFilter(request, response);
     }
+
     private void writeError(HttpServletResponse response, int status, String message) throws IOException {
         
         response.setStatus(status);

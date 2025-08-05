@@ -6,7 +6,9 @@ spring:
     jackson:
         default-property-inclusion: NON_NULL
     redis:
-        expiration: 1800 #秒
+        expiration: 3600 #秒
+        allowedOnlineNum: 5
+        userTokenSetHeader: "user:token:"
         data:
             host: localhost       # Redis 服务器地址
             port: 6379            # Redis 端口
@@ -39,7 +41,7 @@ spring:
                 format_sql: true
 jwt:
     secret: bqK5v1EisVgkzGk4xUOkV0Q5nlf4X3Wg0ApnMduFwb8=
-    expiration: 3600  #seconds
+    expiration: 7200  #seconds
     header: Authorization
     prefix: Bearer 
     token-type: JWT

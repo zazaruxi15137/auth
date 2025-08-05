@@ -1,8 +1,10 @@
 package com.example.rednote.auth.handler;
+import com.example.rednote.auth.dto.JwtUserDto;
 import com.example.rednote.auth.exception.CustomException;
 import com.example.rednote.auth.repository.UserRepository;
 import com.example.rednote.auth.tool.JwtUtil;
 import com.example.rednote.auth.tool.RedisUtil;
+import com.example.rednote.auth.tool.SerializaUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import io.jsonwebtoken.Claims;
@@ -37,8 +39,12 @@ public class UserLogoutHandler implements LogoutHandler {
     private String loginHeader;
     @Value("${jwt.blackTokenHeader}")
     private String blackTokenHeader;
+    @Value("${spring.redis.userTokenSetHeader}")
+    private String userTokenSetHeader;
     @Autowired
     private JwtUtil jwtUtil;
+    @Autowired
+    private SerializaUtil serializaUtil;
     @Override
     public void logout(HttpServletRequest request, HttpServletResponse response, Authentication authentication) {
         // String header=request.getHeader(requestHeader);
@@ -50,20 +56,23 @@ public class UserLogoutHandler implements LogoutHandler {
 
         String token=request.getHeader(requestHeader).substring(prefix.length());
         String jti=null;
-        long expire =0;
+        long expire = 0;
+        // Long userId = 0L;
         try{
             Claims claims = jwtUtil.parseClaims(token);
             jti = claims.getId();
             expire = claims.getExpiration().getTime() - System.currentTimeMillis();
+            // JwtUserDto jwtUserDto = serializaUtil.fromJson(claims.getSubject(), JwtUserDto.class);
+            // userId=jwtUserDto.getId();
         }catch(Exception exception){
             log.error("Jwt解析错误{}", exception.getMessage());
             throw new CustomException("内部错误");
         }
         try{
-            
         // 清除用户的认证信息
         redisUtil.delete(loginHeader + jti);
-        redisUtil.set(blackTokenHeader+jti,"1",expire,TimeUnit.SECONDS);
+        // redisUtil.deleteFromSet(userTokenSetHeader+userId, jti);
+        redisUtil.set(blackTokenHeader+jti,"1",expire,TimeUnit.MILLISECONDS);
         SecurityContextHolder.clearContext();
         }catch(Exception e){
             log.error("redis 操作错误:{}",e.getMessage());

@@ -26,5 +26,5 @@ public class UserDto implements Serializable {
 
     private String token;
 
-    private List<String> permssion;
+    private List<String> permission;
 }

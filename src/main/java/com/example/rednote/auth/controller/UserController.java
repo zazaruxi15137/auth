@@ -12,6 +12,7 @@ import com.example.rednote.auth.service.UserService;
 import com.example.rednote.auth.service.serviceImpl.PermissionRoleServiceImpl;
 import com.example.rednote.auth.service.serviceImpl.UserServiceImpl;
 import com.example.rednote.auth.tool.RespondMessage;
+import com.example.rednote.auth.tool.SerializaUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -27,6 +28,8 @@ import com.example.rednote.auth.exception.CustomException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+
 import com.example.rednote.auth.tool.JwtUtil;
 
 import java.util.List;
@@ -55,10 +58,18 @@ public class UserController {
     private final AuthenticationManager authenticationManager;
     private final RedisUtil redisUtil;  
     private final PermissionRoleService permissionRoleService;
+    private final SerializaUtil serializaUtil;
+    @Value("${spring.redis.userTokenSetHeader}")
+    private String userTokenSetHeader;
     @Value("${jwt.expiration}")
     private long jwtExpiration;
+    @Value("${spring.redis.expiration}")
+    private long redisExpiration;
+
     @Value("${jwt.loginHeader}")
     private String loginHeader;
+    @Value("${spring.redis.allowedOnlineNum}")
+    private long allowedOnlineNum;
 
     /*
      * Admin 注册接口
@@ -103,32 +114,41 @@ public class UserController {
                 new UsernamePasswordAuthenticationToken(loginUserDto.getUsername(), loginUserDto.getPassword())
         );
         // 验证通过获取用户实体生成token
-        if (authentication.isAuthenticated()) {
-            // 获取用户实体
-            UserDto userDto=userService.findByUsername(loginUserDto.getUsername()).get().toUserDto();
-            // 根据roles获取permissons
-            List<String> permissions=permissionRoleService.getPermissionByRoles(userDto.getRoles());
-            // 新建JwtUser定义jwt需要保存的字段
-            JwtUserDto jwtUserDto=new JwtUserDto();
-            jwtUserDto.setPermission(permissions);
-            jwtUserDto.setId(userDto.getId());
-            jwtUserDto.setRoles(userDto.getRoles());
-            jwtUserDto.setUsername(userDto.getUsername());
-            // 设置返回信息
-            userDto.setPermssion(permissions);
-            // 生成jti
-            String jti=UUID.randomUUID().toString();
-            // 生成token并设置到返回信息中
-            userDto.setToken(jwtUtil.generateToken(jti,jwtUserDto, jwtExpiration));
-            // 保存到redis中
-            redisUtil.set(loginHeader+jti, userDto, jwtExpiration, TimeUnit.SECONDS);
-            log.info("用户登录成功: {}:{}", userDto.getUsername(),userDto.getRoles());
-            return RespondMessage.success("登录成功",userDto);
-        } else {
+        if (!authentication.isAuthenticated()) {
             log.warn("用户登录失败: {}", loginUserDto.getUsername());
-            return RespondMessage.fail("登录失败");
+            return RespondMessage.fail("用户名或密码错误");
         }
-    }
+            // 获取用户实体
+        UserDto userDto = userService.findByUsername(loginUserDto.getUsername())
+            .orElseThrow(() -> new UsernameNotFoundException("用户不存在"))
+            .toUserDto();
+        // 检查同一账户同时在线人数
+        if(redisUtil.getLiveTokenSize(userDto.getId())>=allowedOnlineNum){
+            log.warn("超过同时在线人数限制: {}", loginUserDto.getUsername());
+            return RespondMessage.fail("超过同时在线人数限制");
+        }
+
+        // 根据roles获取permissons
+        List<String> permissions=permissionRoleService.getPermissionByRoles(userDto.getRoles());
+        // 新建JwtUser定义jwt需要保存的字段
+        JwtUserDto jwtUserDto=new JwtUserDto();
+        jwtUserDto.setPermission(permissions);
+        jwtUserDto.setId(userDto.getId());
+        jwtUserDto.setRoles(userDto.getRoles());
+        jwtUserDto.setUsername(userDto.getUsername());
+        // 设置返回信息
+        userDto.setPermission(permissions);
+        // 生成jti
+        String jti=UUID.randomUUID().toString();
+        // 生成token并设置到返回信息中
+        String token = jwtUtil.generateToken(jti, jwtUserDto, jwtExpiration);
+        userDto.setToken(token);
+        // 保存到redis中
+        redisUtil.set(loginHeader+jti, serializaUtil.toJson(userDto), redisExpiration, TimeUnit.SECONDS);
+        redisUtil.setToSet(userTokenSetHeader+userDto.getId(), jti, redisExpiration, TimeUnit.SECONDS);
+        log.info("用户登录成功: userId={}, username={}, roles={}", userDto.getId(), userDto.getUsername(), userDto.getRoles());
+        return RespondMessage.success("登录成功",userDto);
+        }
 
     /*
      * 错误接口，未被捕获的错误会重定向到这个接口
