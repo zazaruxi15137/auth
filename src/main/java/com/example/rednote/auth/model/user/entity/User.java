@@ -26,6 +26,10 @@ import lombok.Setter;
 @Entity
 @Table(name = "users")
 public class User implements Serializable {
+    public User(Long userId){
+        this.id=userId;
+    }
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

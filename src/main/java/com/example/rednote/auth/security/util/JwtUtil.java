@@ -25,7 +25,6 @@ public class JwtUtil {
     @Value("${jwt.secret}")
     private String secretKey;
     private Key key;
-    private final SerializaUtil serializaUtil;
 
    @PostConstruct
     public void init() {
@@ -33,7 +32,7 @@ public class JwtUtil {
     }
     public String generateToken(String jti,JwtUser jwtuserDto, long expiration)throws JsonProcessingException {
         return Jwts.builder()
-                .setSubject(serializaUtil.toJson(jwtuserDto))
+                .setSubject(SerializaUtil.toJson(jwtuserDto))
                 .setExpiration(new Date(System.currentTimeMillis() + expiration * 1000L)) // 转换为毫秒
                 .setIssuedAt(new Date())
                 .setId(jti)

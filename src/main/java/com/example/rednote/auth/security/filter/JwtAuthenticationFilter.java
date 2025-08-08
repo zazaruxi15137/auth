@@ -49,7 +49,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private String userTokenSetHeader;
     private final JwtUtil jwtUtil;
     private final RedisUtil redisUtil;
-    private final SerializaUtil serializaUtil;
     
 
     
@@ -71,7 +70,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             claims = jwtUtil.parserJWT(token);
             jti = claims.getId();
             Date exp = claims.getExpiration();
-            jwtUserDto = serializaUtil.fromJson(claims.getSubject(), JwtUser.class);
+            jwtUserDto = SerializaUtil.fromJson(claims.getSubject(), JwtUser.class);
 
             // 黑名单提前校验
             if (redisUtil.hasKey(blackTokenHeader + jti)) {

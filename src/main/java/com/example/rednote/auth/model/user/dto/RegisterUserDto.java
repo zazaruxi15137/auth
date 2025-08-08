@@ -4,7 +4,9 @@ package com.example.rednote.auth.model.user.dto;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import com.example.rednote.auth.model.user.entity.User;
 
@@ -14,6 +16,8 @@ import jakarta.persistence.Id;
 
 
 @Data
+@AllArgsConstructor
+@NoArgsConstructor
 public class RegisterUserDto {
     @Schema(description = "用户名", example = "zhangsan")
     @NotBlank
