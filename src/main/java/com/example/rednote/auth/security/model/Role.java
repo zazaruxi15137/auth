@@ -1,11 +1,15 @@
 package com.example.rednote.auth.security.model;
 
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 
 
 @Entity
+@AllArgsConstructor
+@NoArgsConstructor
 @Table(name = "role")
 @Data
 public class Role {

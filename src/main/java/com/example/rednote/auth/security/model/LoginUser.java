@@ -3,13 +3,17 @@ package com.example.rednote.auth.security.model;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import jakarta.persistence.Id;
 import java.io.Serializable;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
 @Data
+@AllArgsConstructor
+@NoArgsConstructor
 public class LoginUser implements Serializable {
 
     @Id

@@ -1,5 +1,7 @@
 package com.example.rednote.auth.security.model;
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
@@ -16,6 +18,8 @@ import jakarta.persistence.*;
     }
 )
 @Data
+@AllArgsConstructor
+@NoArgsConstructor
 public class RolePermission {
 
     @Id
