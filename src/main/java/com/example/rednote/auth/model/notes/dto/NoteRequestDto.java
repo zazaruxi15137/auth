@@ -18,14 +18,16 @@ public class NoteRequestDto implements Serializable {
     private Long id;
 
     @Schema(description = "笔记标题", example = "text")
+    @NotNull
     private String title;
 
     @Schema(description = "笔记内容", example = "text")
+    @NotNull
     private String content;
 
     @Schema(description = "用户Id", example = "zhangsan")
-    // 外键，关联user表
     @NotNull
+    @NotBlank
     private Long authorId;
 
     @Schema(description = "图片地址list", example = "[url1,url2]")

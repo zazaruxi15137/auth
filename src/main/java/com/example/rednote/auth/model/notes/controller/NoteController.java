@@ -13,11 +13,15 @@ import com.example.rednote.auth.model.notes.dto.NoteRespondDto;
 import com.example.rednote.auth.model.notes.entity.Note;
 import com.example.rednote.auth.model.notes.service.NoteService;
 import com.example.rednote.auth.model.user.entity.User;
+import com.example.rednote.auth.security.model.JwtUser;
+import com.example.rednote.auth.security.util.JwtUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;
 
+import io.jsonwebtoken.Claims;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,9 +29,11 @@ import lombok.extern.slf4j.Slf4j;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties.Jwt;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -51,8 +57,13 @@ import org.springframework.web.bind.annotation.RequestBody;
 public class NoteController {
 
     private final NoteService noteService;
+    private final JwtUtil jwtUtil;
     @Value("${spring.storePath}")
     private String filePath;
+    @Value("${jwt.header}")
+    private String requestHeader;
+    @Value("${jwt.prefix}")
+    private String prefix;
 
     /**
      * 上传笔记图片并返回图片访问地址
@@ -111,16 +122,27 @@ public class NoteController {
     @PreAuthorize("hasAuthority('sys:data:upload')")
     @PostMapping("/notes")
     public RespondMessage<NoteRespondDto> publishNote(
-        @RequestBody @Valid NoteRequestDto requestDto
+        @RequestBody @Valid NoteRequestDto requestDto,
+        HttpServletRequest request
         ) throws JsonProcessingException {
-        
-        Note note=new Note();
+        //在Filter中一进行校验，故在此不进行二次校验
+        String token = request.getHeader(requestHeader);
+        token = token.substring(prefix.length()); // 去掉 "Bearer "
 
-        note.setTitle(requestDto.getTitle());
+        // 2. 从 token 获取用户信息
+        Claims claims = jwtUtil.parserJWT(token);
+        JwtUser currentUser = SerializaUtil.fromJson(claims.getSubject(), JwtUser.class);
+        // 4. 校验作者 ID 是否是当前登录用户
+        if (!currentUser.getId().equals(requestDto.getAuthorId())) {
+            return RespondMessage.fail("非法操作：不能为其他用户上传笔记");
+        }
+
+        Note note=new Note();
+        note.setTitle(requestDto.getTitle()+"");
         note.setAuthor(new User(
             requestDto.getAuthorId()
         ));
-        note.setContent(requestDto.getContent());
+        note.setContent(requestDto.getContent()+"");
         note.setImagesUrls(requestDto.getImagesUrls());
         Note newNote=noteService.save(note);
 

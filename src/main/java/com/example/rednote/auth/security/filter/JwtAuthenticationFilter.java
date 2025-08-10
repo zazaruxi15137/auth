@@ -63,14 +63,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String token = header.substring(prefix.length());
         Claims claims = null;
-        JwtUser jwtUserDto = null;
+        JwtUser jwtUser = null;
         String jti = null;
         // 验证token
         try {
             claims = jwtUtil.parserJWT(token);
             jti = claims.getId();
             Date exp = claims.getExpiration();
-            jwtUserDto = SerializaUtil.fromJson(claims.getSubject(), JwtUser.class);
+            jwtUser = SerializaUtil.fromJson(claims.getSubject(), JwtUser.class);
 
             // 黑名单提前校验
             if (redisUtil.hasKey(blackTokenHeader + jti)) {
@@ -80,8 +80,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             long tokenExpireSec = (exp.getTime() - System.currentTimeMillis()) / 1000L;
             long expireSec = Math.min(expiration, tokenExpireSec);
-            if (!redisUtil.refreshExpireToken(loginHeader + jti, userTokenSetHeader + jwtUserDto.getId(), expireSec, TimeUnit.SECONDS)) {
-                log.info("用户{},id{}的会话已断开，请重新登录",jwtUserDto.getUsername(),jwtUserDto.getId());
+            if (!redisUtil.refreshExpireToken(loginHeader + jti, userTokenSetHeader + jwtUser.getId(), expireSec, TimeUnit.SECONDS)) {
+                log.info("用户{},id{}的会话已断开，请重新登录",jwtUser.getUsername(),jwtUser.getId());
                 writeError(response, 401, "会话已断开，请重新登录");
                 return;
             }
@@ -98,11 +98,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
         // 尝试构建用户权限
-        if (jwtUserDto != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-            String[] authorities = jwtUserDto.getPermission() == null
-                ? new String[0] : jwtUserDto.getPermission().toArray(new String[0]);
+        if (jwtUser != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+            String[] authorities = jwtUser.getPermission() == null
+                ? new String[0] : jwtUser.getPermission().toArray(new String[0]);
             UserDetails userDetails = org.springframework.security.core.userdetails.User
-                .withUsername(jwtUserDto.getUsername())
+                .withUsername(jwtUser.getUsername())
                 .password("")
                 .authorities(authorities)
                 .build();

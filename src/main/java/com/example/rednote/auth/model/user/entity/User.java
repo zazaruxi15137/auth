@@ -2,6 +2,7 @@ package com.example.rednote.auth.model.user.entity;
 
 import java.io.Serializable;
 
+import org.hibernate.annotations.Comment;
 import org.hibernate.resource.jdbc.LogicalConnection;
 
 import com.example.rednote.auth.model.user.dto.UserDto;
@@ -10,6 +11,7 @@ import com.example.rednote.auth.security.model.LoginUser;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
+import jakarta.persistence.Index;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -24,7 +26,12 @@ import lombok.Setter;
 @Getter
 @NoArgsConstructor
 @Entity
-@Table(name = "users")
+@Table(
+    name = "users",
+    indexes = {
+        @Index(name = "idx_username", columnList = "username"),  
+    })
+
 public class User implements Serializable {
     public User(Long userId){
         this.id=userId;
@@ -35,15 +42,19 @@ public class User implements Serializable {
     private Long id;
 
     @Column(nullable = false, unique = true)
+    @Comment("用户名")
     private String username;
 
     @Column(unique = true, nullable = false)
+    @Comment("邮箱")
     private String email;
 
     @Column(nullable = false)
+    @Comment("密码")
     private String password;
 
     @Column(nullable = false)
+    @Comment("用户角色")
     private String roles;
 
     public UserDto toUserDto() {

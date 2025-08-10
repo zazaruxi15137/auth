@@ -1,5 +1,7 @@
 package com.example.rednote.auth.security.model;
 
+import org.hibernate.annotations.Comment;
+
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -18,15 +20,19 @@ public class Permission {
     private Long id;
 
     @Column(unique = true, nullable = false, length = 100)
+    @Comment("权限编码")
     private String code; // 权限编码，如 sys:user:add
 
-    @Column(nullable = false, length = 50)
+    @Column(name = "permission_name",nullable = false, length = 50)
+    @Comment("权限名称")
     private String name; // 权限名称
 
-    @Column(length = 50)
+    @Column(length = 50, nullable=false)
+    @Comment("权限所属模块")
     private String module; // 所属模块
 
-    @Column(length = 255)
+    @Column(length = 255, nullable=false)
+    @Comment("Description")
     private String remark;
 }
 

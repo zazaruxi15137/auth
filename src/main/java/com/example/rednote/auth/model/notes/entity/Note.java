@@ -1,6 +1,7 @@
 package com.example.rednote.auth.model.notes.entity;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -19,7 +20,8 @@ import com.example.rednote.auth.model.user.entity.User;
 
 @Data
 @Entity
-@Table(name = "note")
+@Table(
+    name = "note")
 @AllArgsConstructor
 @NoArgsConstructor
 public class Note implements Serializable {
@@ -27,24 +29,27 @@ public class Note implements Serializable {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name="title")
+    @Column(name="title", nullable=false)
     private String title;
 
-    @Column(columnDefinition = "TEXT")
+    @Column(columnDefinition = "TEXT", nullable=false)
     private String content;
 
     // 外键，关联user表
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "author_id", referencedColumnName = "id", nullable = false)
-    @OnDelete(action = OnDeleteAction.CASCADE) // Hibernate注解
+    @JoinColumn(
+        name = "author_id",
+        referencedColumnName = "id",
+        nullable=false,
+        foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))
     private User author;
 
-    @Column(name = "publish_time",columnDefinition = "timestamp", updatable = false)
+    @Column(name = "publish_time",columnDefinition = "timestamp", updatable = false, nullable=false)
     @CreationTimestamp
     private LocalDateTime publishTime;
 
     @Convert(converter = StringListJsonConverter.class)
-    @Column(name = "images_urls",columnDefinition = "jsonb")
+    @Column(name = "images_urls",columnDefinition = "jsonb", nullable=false)
     private List<String> imagesUrls;
 
 

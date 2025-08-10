@@ -5,19 +5,13 @@ import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-
 import org.springframework.stereotype.Component;
-
 import com.example.rednote.auth.common.tool.SerializaUtil;
-import com.example.rednote.auth.model.user.dto.UserDto;
 import com.example.rednote.auth.security.model.JwtUser;
-import com.example.rednote.auth.security.model.LoginUser;
 import com.fasterxml.jackson.core.JsonProcessingException;
-
 import org.springframework.beans.factory.annotation.Value;
 import java.security.Key;
 import java.util.Date;
-import java.util.UUID;
 @Slf4j
 @Component
 @RequiredArgsConstructor
