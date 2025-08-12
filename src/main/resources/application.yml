@@ -3,7 +3,7 @@ server:
     error:
         path: /api/auth/error
 spring:
-    storePath: D:/rednoteUpload/images/
+    storePath: D:\rednoteUpload\images
     jackson:
         default-property-inclusion: NON_NULL
     servlet:

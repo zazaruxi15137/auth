@@ -53,6 +53,7 @@ public class SecurityConfig {
                         "/v3/api-docs",
                         "/v3/api-docs/**",
                         "/swagger-ui.html").permitAll()
+                    .requestMatchers("/images/**").permitAll()
                     .anyRequest().authenticated()) // 其他请求需要认证
             .addFilterBefore(jwtAuthenticationFilter, LogoutFilter.class)
             .userDetailsService(myUserDetailsService)

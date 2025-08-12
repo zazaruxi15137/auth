@@ -29,7 +29,7 @@ public class PermissionRoleServiceImpl implements PermissionRoleService{
     public List<String> getPermissionByRoles(String roles) {
         List<String> roleList=new ArrayList<>(Arrays.asList(roles.split(regx)));
 
-        List<Long> permissionIds= roleRepository.findIdsByNames(roleList);
+        List<Long> permissionIds= roleRepository.findIdsByRoleNames(roleList);
 
         List<String> l=permissionRoleRepositiry.findPermissionCodesByRoleIds(permissionIds);
 

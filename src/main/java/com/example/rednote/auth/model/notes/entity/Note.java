@@ -10,8 +10,10 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
+import org.hibernate.type.SqlTypes;
 
 import com.example.rednote.auth.common.tool.StringListJsonConverter;
 import com.example.rednote.auth.model.notes.dto.NoteRespondDto;
@@ -48,7 +50,8 @@ public class Note implements Serializable {
     @CreationTimestamp
     private LocalDateTime publishTime;
 
-    @Convert(converter = StringListJsonConverter.class)
+    // @Convert(converter = StringListJsonConverter.class)
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "images_urls",columnDefinition = "jsonb", nullable=false)
     private List<String> imagesUrls;
 

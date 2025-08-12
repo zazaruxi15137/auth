@@ -7,4 +7,6 @@ import com.example.rednote.auth.model.notes.entity.Note;
 
 public interface NoteRepository extends JpaRepository<Note,Long>{
     Page<Note> findByAuthor_Id(Long authorId, Pageable pageable);
+
+    
 }

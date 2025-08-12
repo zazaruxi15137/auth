@@ -25,7 +25,7 @@ public class Permission {
 
     @Column(name = "permission_name",nullable = false, length = 50)
     @Comment("权限名称")
-    private String name; // 权限名称
+    private String permissionName; // 权限名称
 
     @Column(length = 50, nullable=false)
     @Comment("权限所属模块")

@@ -22,9 +22,9 @@ public class Role {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "role_name",unique = true, nullable = false, length = 50)
+    @Column(name = "role_name", unique = true, nullable = false, length = 50)
     @Comment("角色标识")
-    private String name; // 英文标识，如 ROLE_ADMIN
+    private String roleName; // 英文标识，如 ROLE_ADMIN
 
     @Column(nullable = false, length = 50)
     @Comment("角色展示名")

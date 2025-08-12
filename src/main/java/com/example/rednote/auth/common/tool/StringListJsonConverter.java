@@ -9,7 +9,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;
 
-@Converter
+// @Converter
 public class StringListJsonConverter implements AttributeConverter<List<String>, String> {
 
     private static final ObjectMapper objectMapper = new ObjectMapper();

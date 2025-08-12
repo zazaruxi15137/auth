@@ -27,7 +27,6 @@ public class NoteRequestDto implements Serializable {
 
     @Schema(description = "用户Id", example = "zhangsan")
     @NotNull
-    @NotBlank
     private Long authorId;
 
     @Schema(description = "图片地址list", example = "[url1,url2]")
