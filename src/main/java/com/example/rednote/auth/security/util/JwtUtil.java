@@ -5,19 +5,13 @@ import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-
 import org.springframework.stereotype.Component;
-
 import com.example.rednote.auth.common.tool.SerializaUtil;
-import com.example.rednote.auth.model.user.dto.UserDto;
 import com.example.rednote.auth.security.model.JwtUser;
-import com.example.rednote.auth.security.model.LoginUser;
 import com.fasterxml.jackson.core.JsonProcessingException;
-
 import org.springframework.beans.factory.annotation.Value;
 import java.security.Key;
 import java.util.Date;
-import java.util.UUID;
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -25,7 +19,6 @@ public class JwtUtil {
     @Value("${jwt.secret}")
     private String secretKey;
     private Key key;
-    private final SerializaUtil serializaUtil;
 
    @PostConstruct
     public void init() {
@@ -33,7 +26,7 @@ public class JwtUtil {
     }
     public String generateToken(String jti,JwtUser jwtuserDto, long expiration)throws JsonProcessingException {
         return Jwts.builder()
-                .setSubject(serializaUtil.toJson(jwtuserDto))
+                .setSubject(SerializaUtil.toJson(jwtuserDto))
                 .setExpiration(new Date(System.currentTimeMillis() + expiration * 1000L)) // 转换为毫秒
                 .setIssuedAt(new Date())
                 .setId(jti)

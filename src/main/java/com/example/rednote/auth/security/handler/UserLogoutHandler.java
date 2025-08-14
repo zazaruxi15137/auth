@@ -43,8 +43,6 @@ public class UserLogoutHandler implements LogoutHandler {
     private String userTokenSetHeader;
     @Autowired
     private JwtUtil jwtUtil;
-    @Autowired
-    private SerializaUtil serializaUtil;
     @Override
     public void logout(HttpServletRequest request, HttpServletResponse response, Authentication authentication) {
         // String header=request.getHeader(requestHeader);

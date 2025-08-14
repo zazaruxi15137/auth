@@ -134,11 +134,11 @@ public class GlobalExceptionHandler {
     /**
      * 处理所有其他未捕获异常
      */
-    // @ExceptionHandler(Exception.class)
-    // public RespondMessage<String> handleException(Exception ex) {
-    //     log.error("错误: {}", ex.getClass().getName() + ": " + ex.getMessage());
-    //     return new RespondMessage<>("错误"
-    //                     , HttpStatus.BAD_REQUEST.value()
-    //                     ,  ex.getMessage());
-    // }
+    @ExceptionHandler(Exception.class)
+    public RespondMessage<String> handleException(Exception ex) {
+        log.error("错误: {}", ex.getClass().getName() + ": " + ex.getMessage());
+        return new RespondMessage<>("错误"
+                        , HttpStatus.BAD_REQUEST.value()
+                        ,  ex.getMessage());
+    }
 }

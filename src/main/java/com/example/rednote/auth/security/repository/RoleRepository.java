@@ -13,6 +13,6 @@ import io.lettuce.core.dynamic.annotation.Param;
 @Repository
 public interface RoleRepository extends JpaRepository<Role,Long>{
 
-    @Query("select r.id from Role r where r.name in :roleNames")
-    List<Long> findIdsByNames(@Param("roleNames") List<String> roleNames);
+    @Query("select r.id from Role r where r.roleName  in :roleNames")
+    List<Long> findIdsByRoleNames(@Param("roleNames") List<String> roleNames);
 }

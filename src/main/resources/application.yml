@@ -3,8 +3,16 @@ server:
     error:
         path: /api/auth/error
 spring:
+    storePath: D:\rednoteUpload\images
     jackson:
         default-property-inclusion: NON_NULL
+    servlet:
+        multipart:
+            enabled: true
+            max-file-size: 15MB
+            max-request-size: 50MB
+            file-size-threshold: 10MB
+            location: /tmp
     redis:
         expiration: 3600 #秒
         allowedOnlineNum: 5

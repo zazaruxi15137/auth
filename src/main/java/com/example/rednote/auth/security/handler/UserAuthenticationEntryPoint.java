@@ -25,7 +25,7 @@ public class UserAuthenticationEntryPoint  implements AuthenticationEntryPoint {
         response.setContentType("application/json;charset=UTF-8");
         Map<String, Object> responseBody = new HashMap<>();
         responseBody.put("code", 401);
-        responseBody.put("message", authException.getMessage());
+        responseBody.put("message", "未授权的请求");
         responseBody.put("path", request.getRequestURI());
         ObjectMapper mapper = new ObjectMapper();
         response.getWriter().write(mapper.writeValueAsString(responseBody));

@@ -51,7 +51,6 @@ public class UserController {
     private final AuthenticationManager authenticationManager;
     private final RedisUtil redisUtil;  
     private final PermissionRoleService permissionRoleService;
-    private final SerializaUtil serializaUtil;
     @Value("${spring.redis.userTokenSetHeader}")
     private String userTokenSetHeader;
     @Value("${jwt.expiration}")
@@ -138,7 +137,7 @@ public class UserController {
         String token = jwtUtil.generateToken(jti, jwtUserDto, jwtExpiration);
         userDto.setToken(token);
         // 保存到redis中
-        redisUtil.set(loginHeader+jti, serializaUtil.toJson(userDto), redisExpiration, TimeUnit.SECONDS);
+        redisUtil.set(loginHeader+jti, SerializaUtil.toJson(userDto), redisExpiration, TimeUnit.SECONDS);
         redisUtil.setToSet(userTokenSetHeader+userDto.getId(), jti, redisExpiration, TimeUnit.SECONDS);
         log.info("用户登录成功: userId={}, username={}, roles={}", userDto.getId(), userDto.getUsername(), userDto.getRoles());
         return RespondMessage.success("登录成功",userDto);

@@ -14,7 +14,7 @@ import lombok.ToString;
 @ToString
 public class RespondMessage<T> {
     private String message;
-    private int status;
+    private int code;
     private T data;
 
  // 静态方法便于快速返回成功或失败结果
