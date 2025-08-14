@@ -18,7 +18,7 @@ spring:
         allowedOnlineNum: 5
         userTokenSetHeader: "user:token:"
         data:
-            host: localhost       # Redis 服务器地址
+            host: 127.0.0.1       # Redis 服务器地址
             port: 6379            # Redis 端口
             password:             # 如果有密码则填写
             database: 0           # 选择数据库 0-15
@@ -69,3 +69,24 @@ springdoc:
     title: 示例API
     description: 这是你的API说明
     version: v1.0
+app:
+    feed:
+        inbox-max-size: 2000       # 每个用户收件箱最多保留多少条
+        dedup-ttl-seconds: 172800  # 去重键2天过期
+        stream-group: note-push    # 消费者组
+        batch-size: 500            # 每批推送粉丝条数
+        bigv-threshold: 500000     # 超大V阈值（粉丝数）
+        stream:
+            name: note-published
+            batch-size: 10
+            poll-timeout-seconds: 2
+            consumers: 3
+        reclaim:
+            idle-seconds: 60              # Pending 消息超时多久才会被回收
+            batch-size: 50              # 每次最多回收多少条
+            consumer: reclaimer            # 回收消息的消费者名
+            fixed-delay-ms: 300000         # 定时任务多久跑一次（10秒）
+            max-claims: 3                      # 最多重试次数
+        # retry:
+        #     max-attempts: 3                  # 重试次数
+        #     ttl-seconds: 3600                 # 重试计数键TTL
