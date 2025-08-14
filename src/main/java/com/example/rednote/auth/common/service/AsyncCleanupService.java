@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Objects;
 
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -26,6 +27,9 @@ public class AsyncCleanupService {
             } catch (IOException e) {
                 log.warn("清理文件失败: {}", p, e);
             }
+        }
+        if (Objects.isNull(noteDir)) {
+            return;
         }
         // 如目录已空，尝试删目录（非必须）
         try {
