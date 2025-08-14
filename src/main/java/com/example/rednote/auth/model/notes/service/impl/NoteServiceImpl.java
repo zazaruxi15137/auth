@@ -1,40 +1,41 @@
 package com.example.rednote.auth.model.notes.service.impl;
 
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.redis.connection.stream.MapRecord;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
-
-import java.beans.Transient;
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.sql.Time;
+import java.time.ZoneId;
+import java.time.temporal.TemporalField;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
-
-import javax.management.RuntimeOperationsException;
+import java.util.concurrent.TimeUnit;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.cache.CacheProperties.Redis;
 import org.springframework.data.domain.Page;
-
-import com.example.rednote.auth.common.RespondMessage;
-import com.example.rednote.auth.common.exception.CustomException;
 import com.example.rednote.auth.common.service.AsyncCleanupService;
 import com.example.rednote.auth.common.tool.FlieUtil;
-import com.example.rednote.auth.common.tool.SerializaUtil;
+import com.example.rednote.auth.common.tool.KeysUtil;
+import com.example.rednote.auth.common.tool.RedisUtil;
 import com.example.rednote.auth.model.notes.entity.Note;
 import com.example.rednote.auth.model.notes.repository.NoteRepository;
 import com.example.rednote.auth.model.notes.service.NoteService;
-import com.example.rednote.auth.model.user.service.UserService;
-import com.fasterxml.jackson.core.JsonProcessingException;
-
-import jakarta.transaction.Transactional;
+import jakarta.annotation.Nullable;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 @Slf4j
@@ -43,8 +44,14 @@ import lombok.extern.slf4j.Slf4j;
 public class NoteServiceImpl implements NoteService {
 
     private final NoteRepository noteRepository;
+
     @Value("${spring.storePath}")
     private String filePath;
+    @Value("${app.feed.stream.name}")
+    private String stream;
+
+    private final RedisUtil redisUtil;
+    
     private final AsyncCleanupService asyncCleanupService; // 异步清理
     @Override
     public Page<Note> findNoteByPage(Long userId, Pageable page) {
@@ -52,65 +59,175 @@ public class NoteServiceImpl implements NoteService {
        return noteRepository.findByAuthor_Id(userId, page);
     }
 
-@Override
-@Transactional(rollbackOn = Exception.class)
-public Note save(Note note, MultipartFile[] files) {
-    // 1) 先持久化，拿到 noteId，方便组织存储目录
-    Note newNote = noteRepository.save(note);
+   @Override
+   @Transactional(rollbackFor = Exception.class)
+   public Note save(Note note, MultipartFile[] files) {
 
-    // 2) 目录准备（userId/noteId）
-    Long userId = newNote.getAuthor().getId();
-    Objects.requireNonNull(userId, "author.id不能为空");
-    Path noteDir = Paths.get(filePath, String.valueOf(userId), String.valueOf(newNote.getId()));
-    try {
-        Files.createDirectories(noteDir);
-    } catch (IOException e) {
-      log.error("derictory create fail:{}", e.getMessage());
-        throw new RuntimeException("derictory create fail:创建存储目录失败: " + noteDir, e);
-    }
+      // 1) 先持久化，拿到 noteId，方便组织存储目录
+      Note newNote = noteRepository.save(note);
 
-    // 3) 保存文件，失败即清理
-    List<String> urls = new ArrayList<>();
-    List<Path> writtenFiles = new ArrayList<>();
+      // 2) 目录准备（userId/noteId）
+      Long userId = newNote.getAuthor().getId();
+      Objects.requireNonNull(userId, "author.id不能为空");
+      Path noteDir = Paths.get(filePath, String.valueOf(userId), String.valueOf(newNote.getId()));
+      try {
+         Files.createDirectories(noteDir);
+      } catch (IOException e) {
+         log.error("derictory create fail:{}", e.getMessage());
+         throw new RuntimeException("derictory create fail:创建存储目录失败: " + noteDir, e);
+      }
 
-    try {
-        for (MultipartFile file : files) {
-            String uuid = UUID.randomUUID().toString();
-            String ext = StringUtils.getFilenameExtension(file.getOriginalFilename());
-            String filename = uuid + (ext != null ? ("." + ext) : "");
-            Path dest = noteDir.resolve(filename);
+      // 3) 保存文件，失败即清理
+      List<String> urls = new ArrayList<>();
+      List<Path> writtenFiles = new ArrayList<>();
 
-            // 写入磁盘
-            file.transferTo(dest.toFile());
-            writtenFiles.add(dest);
+      try {
+         for (MultipartFile file : files) {
+               String uuid = UUID.randomUUID().toString();
+               String ext = StringUtils.getFilenameExtension(file.getOriginalFilename());
+               String filename = uuid + (ext != null ? ("." + ext) : "");
+               Path dest = noteDir.resolve(filename);
 
-            // 静态资源映射URL（确保你已配置 /images/** -> filePath）
-            String url = "/images/" + userId + "/" + newNote.getId() + "/" + filename;
-            urls.add(url);
+               // 写入磁盘
+               file.transferTo(dest.toFile());
+               writtenFiles.add(dest);
+
+               // 静态资源映射URL（确保你已配置 /images/** -> filePath）
+               String url = "/images/" + userId + "/" + newNote.getId() + "/" + filename;
+               urls.add(url);
+         }
+         // 4) 回写图片URL到实体
+        newNote.setImagesUrls(urls);
+        
+        long score = newNote.getPublishTime()
+        .toInstant()
+        .toEpochMilli();
+        Long authorId = newNote.getAuthor().getId();
+
+        // 1) 写作者公开时间线（用于超大V回补）
+        // redisUtil.setToZSet(KeysUtil.redisAuthorKey(authorId), String.valueOf(note.getId()), score);
+
+        // 2) 发送发布事件到 Redis Stream
+        Map<String, String> body = new HashMap<>();
+        body.put("authorId", String.valueOf(authorId));
+        body.put("noteId", String.valueOf(note.getId()));
+        body.put("tsMillis", String.valueOf(score));
+
+        redisUtil.sendStreamMessage(stream, body);
+        log.info("sendStreamMessage:{}", newNote.getId());
+
+      // 依赖脏检查提交
+      return newNote;
+      } catch (Exception ex) {
+         // 手动清理磁盘
+         asyncCleanupService.cleanupFilesAsync(writtenFiles, noteDir);
+         // 尝试删除空目录
+         log.error("图片储存时发生错误:{}", ex.getMessage());
+         throw new RuntimeException("upload fial:图片保存失败，事务回滚", ex);
+      }
+
+      
+   }
+   @Override
+   @Transactional(rollbackFor = Exception.class)
+   public List<Note> findAllbyIds(List<Long> ids){
+       return noteRepository.findAllById(ids);
+   }
+
+   
+   @Transactional(rollbackFor = Exception.class)
+    public Note updateNote(Long noteId,
+                           Long currentUserId,
+                           @Nullable String title,
+                           @Nullable String content,
+                           @Nullable List<String> removeUrls,
+                           @Nullable MultipartFile[] addImages) {
+
+        // 1) 取笔记并校验所有权
+        Note note = noteRepository.findById(noteId)
+                .orElseThrow(() -> new IllegalArgumentException("笔记不存在"));
+        Long authorId = note.getAuthor().getId();
+        if (!Objects.equals(authorId, currentUserId)) {
+            throw new AccessDeniedException("无权修改他人笔记");
         }
-        // 4) 回写图片URL到实体
-    newNote.setImagesUrls(urls);
-    
-      //   if(true){
-      //            throw new IOException("test exciption");
-      //   }
-    // 依赖脏检查提交
-    return newNote;
-    } catch (Exception ex) {
-        // 手动清理磁盘
-        asyncCleanupService.cleanupFilesAsync(writtenFiles, noteDir);
-        // 尝试删除空目录
-      log.error("图片储存时发生错误:{}", ex.getMessage());
-      throw new RuntimeException("upload fial:图片保存失败，事务回滚", ex);
+
+        // 2) 解析现有图片URL列表
+        
+        List<String> oldUrls = note.getImagesUrls(); // List<String>
+        if (oldUrls == null) oldUrls = new ArrayList<>();
+
+        // 3) 计算要删除/保留
+        Set<String> toRemove = removeUrls == null ? Set.of() : new HashSet<>(removeUrls);
+        List<String> kept = oldUrls.stream()
+                .filter(u -> !toRemove.contains(u))
+                .toList();
+
+        // 4) 写入新增图片
+        List<String> addedUrls = new ArrayList<>();
+        List<Path> writtenFiles = new ArrayList<>();
+        if (addImages != null && addImages.length > 0) {
+            // 可选：兜底校验
+            for (MultipartFile f : addImages) {
+                if (f == null || f.isEmpty()) throw new IllegalArgumentException("存在空图片");
+                if (!FlieUtil.isImage(f) || !FlieUtil.hasImageMagicNumber(f)) {
+                    throw new IllegalArgumentException("仅支持上传图片文件");
+                }
+            }
+
+            Path noteDir = Paths.get(filePath, String.valueOf(authorId), String.valueOf(noteId));
+            try {
+                Files.createDirectories(noteDir);
+            } catch (IOException e) {
+                throw new RuntimeException("创建存储目录失败: " + noteDir, e);
+            }
+
+            try {
+                for (MultipartFile file : addImages) {
+                    String uuid = UUID.randomUUID().toString();
+                    String ext = StringUtils.getFilenameExtension(file.getOriginalFilename());
+                    String filename = uuid + (ext != null ? ("." + ext) : "");
+                    Path dest = noteDir.resolve(filename);
+                    file.transferTo(dest.toFile());
+                    writtenFiles.add(dest);
+                    // 生成静态URL
+                    String url = "/images/" + authorId + "/" + noteId + "/" + filename;
+                    addedUrls.add(url);
+                }
+            } catch (Exception ex) {
+                // 失败：回滚DB + 异步清理已写文件
+                asyncCleanupService.cleanupFilesAsync(writtenFiles, null);
+                throw new RuntimeException("图片保存失败，事务回滚", ex);
+            }
+        }
+
+        // 5) 物理删除被移除的旧图片（非必须同步执行，可改异步）
+        List<Path> toDeleteFiles = mapUrlsToPaths(toRemove, filePath);
+        asyncCleanupService.cleanupFilesAsync(toDeleteFiles, null); // 异步删除更稳妥；要同步就直接删
+
+        // 6) 写回字段（依赖脏检查，不必再 save）
+        if (title != null) note.setTitle(title);
+        if (content != null) note.setContent(content);
+        List<String> finalUrls = new ArrayList<>(kept);
+        finalUrls.addAll(addedUrls);
+        note.setImagesUrls(finalUrls);
+
+        return note; // 事务提交时自动 UPDATE
     }
-
     
-}
-
-
     @Override
     public Optional<Note> findById(Long id) {
        return noteRepository.findById(id);
+    }
+    
+    private List<Path> mapUrlsToPaths(Set<String> urls, String root) {
+        List<Path> files = new ArrayList<>();
+        for (String url : urls) {
+            // 期望格式：/images/{userId}/{noteId}/{filename}
+            String normalized = url.replaceFirst("^/+", "");
+            if (!normalized.startsWith("images/")) continue; // 防护：仅处理受控目录
+            files.add(Paths.get(root).resolve(normalized.substring("images/".length())));
+        }
+        return files;
     }
     
 }
