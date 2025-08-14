@@ -2,35 +2,30 @@ package com.example.rednote.auth.model.user.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
-import java.io.Serializable;
-import java.util.List;
-
-import jakarta.validation.constraints.Email;
 import jakarta.persistence.Id;
+import java.io.Serializable;
+
+import io.swagger.v3.oas.annotations.media.Schema;
 
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class UserDto implements Serializable {
+public class LoginDto implements Serializable {
+
     @Id
     @Positive
     private Long id;
-
+    @Schema(description = "用户名", example = "zhangsan")
     @NotBlank
+    @Size(min = 6, max = 20)
     private String username;
-
+    @Schema(description = "密码", example = "******")
     @NotBlank
-    @Email  
-    private String email;
-
-    @NotBlank
-    private String roles;
-
-    private String token;
-
-    private List<String> permission;
+    @Size(min = 6, max = 20)
+    private String password;
 }
+
