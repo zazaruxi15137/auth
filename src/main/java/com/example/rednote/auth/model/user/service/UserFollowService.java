@@ -1,5 +1,7 @@
 package com.example.rednote.auth.model.user.service;
 
+import java.util.List;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -14,6 +16,8 @@ public interface UserFollowService {
     public Long countFollowers(Long authorId);
 
     public Page<UserFollow> pageFollowers(Long followeeId, Pageable pageRequest);
+    
+    List<Long> findBigvAuthors(Long userId, long threshold);
 
 
 }

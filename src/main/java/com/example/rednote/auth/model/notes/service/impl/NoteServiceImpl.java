@@ -1,7 +1,6 @@
 package com.example.rednote.auth.model.notes.service.impl;
 
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.redis.connection.stream.MapRecord;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -11,9 +10,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.sql.Time;
-import java.time.ZoneId;
-import java.time.temporal.TemporalField;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -23,10 +19,8 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
-
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.cache.CacheProperties.Redis;
+import org.springframework.boot.autoconfigure.couchbase.CouchbaseProperties.Io;
 import org.springframework.data.domain.Page;
 import com.example.rednote.auth.common.service.AsyncCleanupService;
 import com.example.rednote.auth.common.tool.FlieUtil;
@@ -35,6 +29,8 @@ import com.example.rednote.auth.common.tool.RedisUtil;
 import com.example.rednote.auth.model.notes.entity.Note;
 import com.example.rednote.auth.model.notes.repository.NoteRepository;
 import com.example.rednote.auth.model.notes.service.NoteService;
+import com.example.rednote.auth.model.user.service.UserFollowService;
+
 import jakarta.annotation.Nullable;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -43,12 +39,19 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class NoteServiceImpl implements NoteService {
 
-    private final NoteRepository noteRepository;
+    private final NoteRepository noteRepository;    
+    private final UserFollowService userFollowService;
+
 
     @Value("${spring.storePath}")
     private String filePath;
     @Value("${app.feed.stream.name}")
     private String stream;
+    @Value("${app.feed.bigv-threshold}") 
+    private long bigvThreshold;
+    @Value("${app.feed.outbox-max-size}")
+    private long outboxMaxSize;
+
 
     private final RedisUtil redisUtil;
     
@@ -105,27 +108,32 @@ public class NoteServiceImpl implements NoteService {
         Long authorId = newNote.getAuthor().getId();
 
         // 1) 写作者公开时间线（用于超大V回补）
-        // redisUtil.setToZSet(KeysUtil.redisAuthorKey(authorId), String.valueOf(note.getId()), score);
+        // 
 
         // 2) 发送发布事件到 Redis Stream
-        Map<String, String> body = new HashMap<>();
-        body.put("authorId", String.valueOf(authorId));
-        body.put("noteId", String.valueOf(note.getId()));
-        body.put("tsMillis", String.valueOf(score));
-
-        redisUtil.sendStreamMessage(stream, body);
-        log.info("sendStreamMessage:{}", newNote.getId());
-
+        long followers = userFollowService.countFollowers(authorId);
+        if(followers > bigvThreshold){
+            redisUtil.setToZSet(KeysUtil.redisOutboxKey(authorId), String.valueOf(note.getId()), score);
+            redisUtil.trimZSet(KeysUtil.redisOutboxKey(authorId), 0, -outboxMaxSize-1);
+            log.info("消息为大v发布{}，仅公开时间线", authorId);
+        }else{
+            Map<String, String> body = new HashMap<>();
+            body.put("authorId", String.valueOf(authorId));
+            body.put("noteId", String.valueOf(note.getId()));
+            body.put("tsMillis", String.valueOf(score));
+            redisUtil.sendStreamMessage(stream, body);
+            log.info("sendStreamMessage:{}", newNote.getId());
+        }
+        
       // 依赖脏检查提交
       return newNote;
       } catch (Exception ex) {
          // 手动清理磁盘
          asyncCleanupService.cleanupFilesAsync(writtenFiles, noteDir);
          // 尝试删除空目录
-         log.error("图片储存时发生错误:{}", ex.getMessage());
-         throw new RuntimeException("upload fial:图片保存失败，事务回滚", ex);
+         log.error("笔记上传失败，回滚事务:{}", ex.getMessage());
+         throw new RuntimeException("upload fial：笔记上传失", ex);
       }
-
       
    }
    @Override

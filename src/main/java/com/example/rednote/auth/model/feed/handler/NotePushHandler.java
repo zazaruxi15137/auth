@@ -28,7 +28,7 @@ public class NotePushHandler {
     @Value("${app.feed.batch-size}") private int batchSize;
     @Value("${app.feed.inbox-max-size}") private int inboxMaxSize;
     @Value("${app.feed.dedup-ttl-seconds}") private int dedupTtlSeconds;
-    @Value("${app.feed.bigv-threshold}") private long bigvThreshold;
+    
 
     private volatile String sha1;
 
@@ -42,13 +42,6 @@ public class NotePushHandler {
     }
 
     public void handle(long authorId, long noteId, long ts) {
-        // long followers = userFollowService.countFollowers(authorId);
-
-        // 实现超大V回补后启用
-        // if (followers >= bigvThreshold) {
-        //     // 超大V：只写作者公开线（你在发布时已写），此处无需写扩散
-        //     return;
-        // }
 
         int page = 0;
         while (true) {

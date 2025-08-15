@@ -1,11 +1,13 @@
 package com.example.rednote.auth.model.user.repository;
 
+import java.util.List;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
-
+import org.springframework.data.repository.query.Param;
 import com.example.rednote.auth.model.user.entity.UserFollow;
 
 public interface UserFollowRepository extends JpaRepository<UserFollow, Long> {
@@ -21,4 +23,9 @@ public interface UserFollowRepository extends JpaRepository<UserFollow, Long> {
 
 
     boolean existsByFollowerIdAndFolloweeIdAndActive(Long followerId, Long followeeId, Boolean active);
+
+    @Query("SELECT f.followeeId FROM UserFollow f " +
+       "WHERE f.followerId = :userId AND f.active = true " +
+       "AND (SELECT COUNT(*) FROM UserFollow f2 WHERE f2.followeeId = f.followeeId) >= :threshold")
+    List<Long> findBigvAuthors(@Param("userId") Long userId, @Param("threshold") long threshold);
 }

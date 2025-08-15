@@ -45,10 +45,21 @@ public class RedisUtil {
         stringRedisTemplate.opsForSet().add(key, value);
         stringRedisTemplate.expire(key, timeout, unit);
     }
+
+    public void setAllToSet(String key, String[] value, long timeout, TimeUnit unit) {
+        stringRedisTemplate.opsForSet().add(key, value);
+        stringRedisTemplate.expire(key, timeout, unit);
+    }
     
     public void setToZSet(String key, String value,Long score, long timeout, TimeUnit unit) {
         stringRedisTemplate.opsForZSet().add(key, value, score );
         stringRedisTemplate.expire(key, timeout, unit);
+    }
+    public void setToZSet(String key, String value,Long score) {
+        stringRedisTemplate.opsForZSet().add(key, value, score );
+    }
+    public void trimZSet(String key,long min, long max) {
+        stringRedisTemplate.opsForZSet().removeRange(key,min, max);
     }
 
 

@@ -1,6 +1,7 @@
 package com.example.rednote.auth.model.feed.service.impl;
 
 import com.example.rednote.auth.common.tool.KeysUtil;
+import com.example.rednote.auth.model.feed.dto.FeedItemDto;
 import com.example.rednote.auth.model.feed.dto.FeedRespond;
 import com.example.rednote.auth.model.feed.service.FeedService;
 import com.example.rednote.auth.model.notes.dto.NoteRespondDto;
@@ -16,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service 
 @Slf4j
@@ -26,6 +28,7 @@ public class FeedServiceImpl implements FeedService {
     private final NoteService  noteService;
 
     @Value("${app.feed.bigv-threshold}") private long bigvThreshold;
+    @Value("${app.feed.bigV-pull-size}") private int bigVPullSize;
 
     /**
      * cursor 为“上次返回的最末条 score（毫秒）”，首次可传 Long.MAX_VALUE
@@ -35,55 +38,56 @@ public class FeedServiceImpl implements FeedService {
     public FeedRespond<NoteRespondDto> getFeed(long userId, long cursorExclusive, int size) {
 
     String key = KeysUtil.redisInboxKey(userId);
-    double max = cursorExclusive <= 0 ? Double.POSITIVE_INFINITY : cursorExclusive - 1; // 排除等于 cursor 的
-    Set<ZSetOperations.TypedTuple<String>> tuples =
+
+    //拉取收件箱的笔记
+    double max = cursorExclusive <= 0 ? Long.MAX_VALUE : cursorExclusive - 1; // 排除等于 cursor 的
+    Set<ZSetOperations.TypedTuple<String>> inbox =
             redis.opsForZSet().reverseRangeByScoreWithScores(key, Double.NEGATIVE_INFINITY, max, 0, size);
+    //获取关注大v的笔记
+    List<ZSetOperations.TypedTuple<String>> outbox = new ArrayList<>();
+    for (String aid : redis.opsForSet().members(KeysUtil.redisFollowedBigVKey(userId))) {
+        outbox.addAll(redis.opsForZSet()
+            .reverseRangeByScoreWithScores(KeysUtil.redisOutboxKey(Long.valueOf(aid)), Double.NEGATIVE_INFINITY, max, 0, bigVPullSize));
+    }
+
+    // 合并
+    Map<Long, FeedItemDto> noteMap = new HashMap<>();
+    Stream.concat(inbox.stream(), outbox.stream()).forEach(t -> {
+        long noteId = Long.parseLong(t.getValue());
+        noteMap.putIfAbsent(noteId, new FeedItemDto(noteId, t.getScore().longValue()));
+    });
+
+    List<FeedItemDto> merged = noteMap.values().stream()
+            .sorted(Comparator.comparing(FeedItemDto::getScore).reversed())
+            .limit(size)
+            .toList();
     
-    if (tuples == null || tuples.isEmpty()) {
+    if (merged == null || merged.isEmpty()) {
     return new FeedRespond<>(List.of(), false, null,0);
     }
     
     //拉取note实体
     List<Note> notes = noteService
-        .findAllbyIds(tuples
+        .findAllbyIds(merged
             .stream()
-            .map(t -> Long.valueOf(t.getValue()))
+            .map( t -> t.getNoteId())
             .toList());
     
     
     
     Map<Long, Note> map = notes.stream().collect(Collectors.toMap(Note::getId, Function.identity()));
 
-    List<NoteRespondDto> sotednote = tuples
+    List<NoteRespondDto> sotednote = merged
         .stream()
-        .map(t-> map.get(Long.valueOf(t.getValue())))
+        .map(t-> map.get(t.getNoteId()))
         .map(Note::toNoteRespondDto)
         .toList();
+    // 使用原始数据计算是否还有更多
+    boolean hasMore = merged.size() >= size;
+    Long nextCursor = merged.size() >= size ? merged.get(size-1).getScore() : null;
 
-
-    boolean hasMore = sotednote.size() >= size;
-    Long lastScore = tuples
-        .stream()
-        .skip(sotednote.size() - 1)
-        .findFirst()
-        .map(t -> t.getScore().longValue())
-        .orElse(null);
-
-    // 如果结果不足 size，可以做“超大V回补”
-    // if (sotednote.size() < size) {
-        // 找到用户关注的作者里是超大V的（这里简化：遍历用户关注的作者分页或缓存名单——实际可做缓存）
-        // 为了演示，省略“查询用户关注列表”这一步，你可以在 FollowRepository 补充相应接口。
-        // 假设我们有一个作者列表 bigAuthors（建议缓存），从各自 authorKey 里按时间取少量合并：
-        // List<Long> bigAuthors = ...
-        // for (Long aid : bigAuthors) {
-        //   var add = redis.opsForZSet().reverseRangeByScoreWithScores(RedisKeys.authorKey(aid),
-        //       Double.NEGATIVE_INFINITY, max, 0, size);
-        //   // merge 到 list（注意去重 noteId）
-        // }
-        // 这里给出一个占位注释：生产上强烈建议将“用户关注作者列表”缓存成 SET，
-        // 并维护一个“bigv:authors”集合；取交集后再从各作者时间线少量取若干条并 merge。
-    // }
-    return new FeedRespond<>(sotednote, hasMore, lastScore,sotednote.size());
+    // 返回查询到的笔记数量（有些可能已被删除导致需求的数量和实际数量不一致）
+    return new FeedRespond<>(sotednote, hasMore, nextCursor ,sotednote.size());
     }
     
 }

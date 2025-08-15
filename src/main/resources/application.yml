@@ -72,10 +72,13 @@ springdoc:
 app:
     feed:
         inbox-max-size: 2000       # 每个用户收件箱最多保留多少条
+        outbox-max-size: 500           # 每个大v发布笔记保存数量
+        follow-bigV-exprir: 24        #维护的每个用户关注的bigV集合过期时间 /hour
+        bigV-pull-size: 5           #最多拉取每个大v笔记的数量
         dedup-ttl-seconds: 172800  # 去重键2天过期
         stream-group: note-push    # 消费者组
         batch-size: 500            # 每批推送粉丝条数
-        bigv-threshold: 500000     # 超大V阈值（粉丝数）
+        bigv-threshold: 20     # 超大V阈值（粉丝数）
         stream:
             name: note-published
             batch-size: 10
