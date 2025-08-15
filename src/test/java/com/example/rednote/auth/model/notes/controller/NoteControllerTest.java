@@ -19,7 +19,7 @@ public class NoteControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    private String token= "Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ7XCJpZFwiOjEsXCJ1c2VybmFtZVwiOlwidGVzdHVzZXJcIixcInJvbGVzXCI6XCJST0xFX1VTRVJcIixcInBlcm1pc3Npb25cIjpbXCJST0xFX1VTRVJcIixcInN5czpkYXRhOnZpZXdcIixcInN5czpwcm9maWxlOmVkaXRcIixcInN5czpkYXRhOnVwbG9hZFwiXX0iLCJleHAiOjE3NTQ5NjYxMTYsImlhdCI6MTc1NDk1ODkxNiwianRpIjoiNmFjOThjMGItN2Y0OC00MmFlLTkxZGMtNDQ0MzNmYzMyOTFlIn0.gKTZtMBO1jOOB5VTu0pwKl5peXL4J3rS7jzXYwHfxho";
+    private String token= "Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0dXNlcjIiLCJ1aWQiOjIsImF1dGgiOiJbXCJST0xFX1VTRVJcIixcInN5czpkYXRhOnZpZXdcIixcInN5czpwcm9maWxlOmVkaXRcIixcInN5czpkYXRhOnVwbG9hZFwiXSIsInJvbGVzIjoiUk9MRV9VU0VSIiwiaWF0IjoxNzU1MTI4MDkzLCJleHAiOjE3NTUxMzUyOTMsImp0aSI6IjU5ZGFiYTY3LTMyZDQtNDU1NC1iNWEzLTdkODczMDVjYTNhZCJ9.vs2O2HNSWUenBtvl3MWy2Z6n760gQI3aiZ9TUh2C1FQ";
 
     //  测试图片上传接口
     @Test
@@ -61,6 +61,14 @@ public class NoteControllerTest {
                         .param("page", "1000000")
                         .param("size", "2"))
                 .andExpect(jsonPath("$.data.content").isEmpty())
+                .andExpect(jsonPath("$.code").value(200));
+    }
+
+    @Test
+    @WithMockUser(authorities = "sys:data:upload")
+    void testFollow() throws Exception {
+        mockMvc.perform(post("/api/users/1/follow", 1L)
+                        .header("Authorization", token))
                 .andExpect(jsonPath("$.code").value(200));
     }
 

@@ -47,7 +47,7 @@ public class SecurityConfig {
             // 配置请求权限
             .authorizeHttpRequests(auth -> auth
                     .requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/auth/login").permitAll()// 允许注册和登录接口匿名访问
-                    .requestMatchers("/api/auth/error", "/error").permitAll() // 允许错误处理接口匿名访问
+                    .requestMatchers("/api/error", "/error").permitAll() // 允许错误处理接口匿名访问
                     .requestMatchers(
                         "/swagger-ui/**",
                         "/v3/api-docs",

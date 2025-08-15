@@ -10,6 +10,7 @@ import lombok.NoArgsConstructor;
     @AllArgsConstructor
     @NoArgsConstructor
     public class UserSimpleDto implements Serializable {
+        
     private Long id;
     private String username;
     private String email;
