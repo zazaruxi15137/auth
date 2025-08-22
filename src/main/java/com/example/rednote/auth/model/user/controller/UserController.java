@@ -12,9 +12,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.rednote.auth.common.RespondMessage;
+import com.example.rednote.auth.common.aop.Idempotent;
+import com.example.rednote.auth.common.tool.MetricsNames;
 import com.example.rednote.auth.model.user.service.UserFollowService;
 import com.example.rednote.auth.security.model.JwtUser;
-
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.Positive;
@@ -26,22 +29,31 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class UserController {
     private final UserFollowService userFollowService;
-
+    private final MeterRegistry meter;
     // 鉴权后拿到 userId（此处用参数代替）
     @PreAuthorize("hasAuthority('sys:data:upload')")
     @Operation(summary = "关注用户", description = "关注用户")
     @PostMapping("/{targetId}/follow")
-    public RespondMessage<Long> follow(@AuthenticationPrincipal JwtUser jwtUser,
+    @Idempotent()
+    public ResponseEntity<Object> follow(@AuthenticationPrincipal JwtUser jwtUser,
                                        @PathVariable @Positive long targetId) {
-        userFollowService.follow(jwtUser.getId(), targetId);
-        return RespondMessage.success( "Follow success:已关注"+targetId );
+                                        
+        Timer.builder(MetricsNames.SOCIAL_FOLLOW_TIMER)
+        .register(meter)
+        .record(() ->userFollowService.follow(jwtUser.getId(), targetId));
+        return ResponseEntity.ok().body(RespondMessage.success( "Follow success:已关注"+targetId ));
     }
+    
+    
     @PreAuthorize("hasAuthority('sys:data:upload')")
     @Operation(summary = "取消关注用户", description = "取消关注用户")
     @DeleteMapping("/{targetId}/follow")
-    public RespondMessage<Long> unfollow(@AuthenticationPrincipal JwtUser jwtUser,
+    @Idempotent()
+    public ResponseEntity<Object> unfollow(@AuthenticationPrincipal JwtUser jwtUser,
                                          @PathVariable @Positive long targetId) {
-        userFollowService.unfollow(jwtUser.getId(), targetId);
-        return RespondMessage.success("Unfollow success:已取消关注"+targetId );
+        Timer.builder(MetricsNames.SOCIAL_UNFOLLOW_TIMER)
+        .register(meter)
+        .record(() ->userFollowService.unfollow(jwtUser.getId(), targetId));
+        return ResponseEntity.ok().body(RespondMessage.success("Unfollow success:已取消关注"+targetId ));
     }
 }

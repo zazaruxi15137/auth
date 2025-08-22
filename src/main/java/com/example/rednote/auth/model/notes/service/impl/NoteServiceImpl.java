@@ -1,12 +1,16 @@
 package com.example.rednote.auth.model.notes.service.impl;
 
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.redis.connection.ReturnType;
+import org.springframework.data.redis.core.RedisCallback;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -19,20 +23,24 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.couchbase.CouchbaseProperties.Io;
 import org.springframework.data.domain.Page;
+import com.example.rednote.auth.common.exception.CustomException;
 import com.example.rednote.auth.common.service.AsyncCleanupService;
 import com.example.rednote.auth.common.tool.FlieUtil;
 import com.example.rednote.auth.common.tool.KeysUtil;
+import com.example.rednote.auth.common.tool.MetricsNames;
 import com.example.rednote.auth.common.tool.RedisUtil;
 import com.example.rednote.auth.model.notes.entity.Note;
 import com.example.rednote.auth.model.notes.repository.NoteRepository;
 import com.example.rednote.auth.model.notes.service.NoteService;
 import com.example.rednote.auth.model.user.service.UserFollowService;
-
 import jakarta.annotation.Nullable;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
+import io.micrometer.core.instrument.*;
 import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Service
@@ -41,8 +49,7 @@ public class NoteServiceImpl implements NoteService {
 
     private final NoteRepository noteRepository;    
     private final UserFollowService userFollowService;
-
-
+    private final MeterRegistry meter;
     @Value("${spring.storePath}")
     private String filePath;
     @Value("${app.feed.stream.name}")
@@ -51,11 +58,25 @@ public class NoteServiceImpl implements NoteService {
     private long bigvThreshold;
     @Value("${app.feed.outbox-max-size}")
     private long outboxMaxSize;
-
-
-    private final RedisUtil redisUtil;
+    @Value("${app.feed.mod}")
+    private String mod;
+    @Value("${app.feed.box-exprir-time}")
+    private int exprirTime;
     
+    private volatile String sha2; 
+    @Qualifier("notePublishScript")
+    private final DefaultRedisScript<Long> notePublishScript;
+    private final RedisUtil redisUtil;
+
     private final AsyncCleanupService asyncCleanupService; // 异步清理
+    @PostConstruct
+    public void preloadLua() {
+        this.sha2 = redisUtil.gTemplate().execute((RedisCallback<String>) con ->
+                con.scriptingCommands().scriptLoad(
+                        notePublishScript.getScriptAsString().getBytes(StandardCharsets.UTF_8)
+                )
+        );
+    }
     @Override
     public Page<Note> findNoteByPage(Long userId, Pageable page) {
 
@@ -111,20 +132,60 @@ public class NoteServiceImpl implements NoteService {
         // 
 
         // 2) 发送发布事件到 Redis Stream
+        // 为每个用户维护一个outbox，储存最近发送的笔记
+        // if("mix".equals(mod)){
         long followers = userFollowService.countFollowers(authorId);
-        if(followers > bigvThreshold){
-            redisUtil.setToZSet(KeysUtil.redisOutboxKey(authorId), String.valueOf(note.getId()), score);
-            redisUtil.trimZSet(KeysUtil.redisOutboxKey(authorId), 0, -outboxMaxSize-1);
-            log.info("消息为大v发布{}，仅公开时间线", authorId);
-        }else{
-            Map<String, String> body = new HashMap<>();
-            body.put("authorId", String.valueOf(authorId));
-            body.put("noteId", String.valueOf(note.getId()));
-            body.put("tsMillis", String.valueOf(score));
-            redisUtil.sendStreamMessage(stream, body);
-            log.info("sendStreamMessage:{}", newNote.getId());
+        Timer.Sample s = Timer.start(meter);
+        try {
+        redisUtil.gTemplate().executePipelined((RedisCallback<Object>) con -> {
+
+                byte[] key = KeysUtil.redisOutboxKey(authorId).getBytes(StandardCharsets.UTF_8);
+                // ARGV 顺序要与 Lua 对齐：member, score, maxSize, expireDays, timeUnit
+                byte[] member = String.valueOf(newNote.getId()).getBytes(StandardCharsets.UTF_8);
+                byte[] bscore = String.valueOf(score).getBytes(StandardCharsets.UTF_8);
+                byte[] maxSz  = String.valueOf(outboxMaxSize).getBytes(StandardCharsets.UTF_8);
+                byte[] days   = String.valueOf(exprirTime).getBytes(StandardCharsets.UTF_8);
+                byte[] unit   = "ms".getBytes(StandardCharsets.UTF_8); 
+                byte[][] keysAndArgs = new byte[][]{
+                    key, // inbox
+                    member, // authorID
+                    bscore, //当前时间ms
+                    maxSz,//最大保留笔记条数
+                    days,// 保留天数
+                    unit// 时间单位默认 ms
+                };                // 如果你的 score 用秒，传 "s"
+                try{
+                    con.scriptingCommands().evalSha(sha2, ReturnType.INTEGER, 1, keysAndArgs);
+                }catch(Exception e){
+                    log.error("笔记加入outbox失败", newNote.getId(), authorId, e.getMessage());
+                    throw new CustomException("笔记发布失败，请稍后再试");
+                }
+                Counter.builder(MetricsNames.PIPLINE_EXEC_SUCCESS)
+                .tag("scene","笔记发布推流成功").register(meter).increment();
+                return null;
+            });
+} catch (Exception e) {
+            Counter.builder(MetricsNames.PIPLINE_EXEC_FAIL)
+                .tag("scene","笔记发布推流失败").register(meter).increment();
+                log.warn("pipline:笔记发布失败");
+            throw e;
+        } finally {
+            s.stop(Timer.builder(MetricsNames.PIPLINE_EXEC_TIMER)
+                .tag("scene","笔记发布推流")
+                .register(meter));
         }
-        
+            // log.info("笔记发布发布作者：{}，加入outbox", authorId);
+         
+        // }  
+        // 为非大v博主的推送到stream中。
+        if(followers < bigvThreshold){
+        Map<String, String> body = new HashMap<>();
+        body.put("authorId", String.valueOf(authorId));
+        body.put("noteId", String.valueOf(note.getId()));
+        body.put("tsMillis", String.valueOf(score));
+        redisUtil.sendStreamMessage(stream, body);
+        log.info("笔记已经推送到流中:{}", newNote.getId());
+         }
       // 依赖脏检查提交
       return newNote;
       } catch (Exception ex) {

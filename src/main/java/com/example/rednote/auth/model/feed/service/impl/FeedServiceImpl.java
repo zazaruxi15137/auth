@@ -1,6 +1,7 @@
 package com.example.rednote.auth.model.feed.service.impl;
 
 import com.example.rednote.auth.common.tool.KeysUtil;
+import com.example.rednote.auth.common.tool.SerializaUtil;
 import com.example.rednote.auth.model.feed.dto.FeedItemDto;
 import com.example.rednote.auth.model.feed.dto.FeedRespond;
 import com.example.rednote.auth.model.feed.service.FeedService;
@@ -15,6 +16,7 @@ import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -28,7 +30,9 @@ public class FeedServiceImpl implements FeedService {
     private final NoteService  noteService;
 
     @Value("${app.feed.bigv-threshold}") private long bigvThreshold;
-    @Value("${app.feed.bigV-pull-size}") private int bigVPullSize;
+    @Value("${app.feed.bigV-pull-size}") private double bigVPullSize;
+    @Value("${spring.redis.cache_bound}") private long bound;
+    @Value("${spring.redis.cache_min_Time}") private long minTime;
 
     /**
      * cursor 为“上次返回的最末条 score（毫秒）”，首次可传 Long.MAX_VALUE
@@ -42,12 +46,14 @@ public class FeedServiceImpl implements FeedService {
     //拉取收件箱的笔记
     double max = cursorExclusive <= 0 ? Long.MAX_VALUE : cursorExclusive - 1; // 排除等于 cursor 的
     Set<ZSetOperations.TypedTuple<String>> inbox =
-            redis.opsForZSet().reverseRangeByScoreWithScores(key, Double.NEGATIVE_INFINITY, max, 0, size);
+            Optional
+                .ofNullable(redis.opsForZSet().reverseRangeByScoreWithScores(key, Double.NEGATIVE_INFINITY, max, 0, 2*size))
+                .orElse(new HashSet<>());
     //获取关注大v的笔记
     List<ZSetOperations.TypedTuple<String>> outbox = new ArrayList<>();
     for (String aid : redis.opsForSet().members(KeysUtil.redisFollowedBigVKey(userId))) {
         outbox.addAll(redis.opsForZSet()
-            .reverseRangeByScoreWithScores(KeysUtil.redisOutboxKey(Long.valueOf(aid)), Double.NEGATIVE_INFINITY, max, 0, bigVPullSize));
+            .reverseRangeByScoreWithScores(KeysUtil.redisOutboxKey(Long.valueOf(aid)), Double.NEGATIVE_INFINITY, max, 0, Math.max((int)bigVPullSize*size, 1)));
     }
 
     // 合并
@@ -56,12 +62,10 @@ public class FeedServiceImpl implements FeedService {
         long noteId = Long.parseLong(t.getValue());
         noteMap.putIfAbsent(noteId, new FeedItemDto(noteId, t.getScore().longValue()));
     });
-
     List<FeedItemDto> merged = noteMap.values().stream()
             .sorted(Comparator.comparing(FeedItemDto::getScore).reversed())
             .limit(size)
             .toList();
-    
     if (merged == null || merged.isEmpty()) {
     return new FeedRespond<>(List.of(), false, null,0);
     }
@@ -73,21 +77,35 @@ public class FeedServiceImpl implements FeedService {
             .map( t -> t.getNoteId())
             .toList());
     
-    
-    
-    Map<Long, Note> map = notes.stream().collect(Collectors.toMap(Note::getId, Function.identity()));
 
+    Map<Long, Note> map = notes.stream().collect(Collectors.toMap(Note::getId, Function.identity()));
+    log.info("sdasdd{},{}",map.size(),merged.size());
     List<NoteRespondDto> sotednote = merged
         .stream()
-        .map(t-> map.get(t.getNoteId()))
+        .map(t-> {return map.get(t.getNoteId());})
+        .filter(t->t!=null)
         .map(Note::toNoteRespondDto)
         .toList();
+
+    log.info("nnn{}", sotednote.size());
     // 使用原始数据计算是否还有更多
     boolean hasMore = merged.size() >= size;
     Long nextCursor = merged.size() >= size ? merged.get(size-1).getScore() : null;
-
+    FeedRespond res=new FeedRespond<>(sotednote, hasMore, nextCursor ,sotednote.size());
+    //缓存查到的数据
+    Random r=new Random();
+    
+    try{
+        redis.opsForValue().set(
+            KeysUtil.redisUserFeedCacheKey(userId, cursorExclusive, size), 
+            SerializaUtil.toJson(res),
+            minTime+r.nextLong(bound),
+            TimeUnit.SECONDS);
+    }catch(Exception ignord){
+        log.warn("Feed 数据缓存失败{}",ignord.getMessage() );
+    }
     // 返回查询到的笔记数量（有些可能已被删除导致需求的数量和实际数量不一致）
-    return new FeedRespond<>(sotednote, hasMore, nextCursor ,sotednote.size());
+    return res;
     }
     
 }

@@ -40,13 +40,13 @@ public class AsyncConfig {
         log.info("feedExecutor initialized");
         return exec;
     }
-    @Bean(name = "reclaimExecutor")
-    public ScheduledExecutorService reclaimExecutor() {
-        return Executors.newScheduledThreadPool(2, runnable -> {
-            Thread t = new Thread(runnable);
-            t.setName("feed-reclaimer-thread");
-            t.setDaemon(true);
-            return t;
-        });
-    }
+    // @Bean(name = "reclaimExecutor")
+    // public ScheduledExecutorService reclaimExecutor() {
+    //     return Executors.newScheduledThreadPool(2, runnable -> {
+    //         Thread t = new Thread(runnable);
+    //         t.setName("feed-reclaimer-thread");
+    //         t.setDaemon(true);
+    //         return t;
+    //     });
+    // }
 }

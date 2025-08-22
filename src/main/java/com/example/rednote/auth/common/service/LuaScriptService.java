@@ -8,8 +8,10 @@ import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 import com.example.rednote.auth.common.exception.CustomException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class LuaScriptService implements ResourceLoaderAware{
 
@@ -30,12 +32,44 @@ public class LuaScriptService implements ResourceLoaderAware{
      */
     @Bean
     DefaultRedisScript<Long> inboxUpsertScript() {
-        Resource resource = resourceLoader.getResource("classpath:feedscript.lua");  
+        Resource resource = resourceLoader.getResource("classpath:lua/feedscript.lua");  
         String lua;  
         try {  
             lua = new String(resource.getInputStream().readAllBytes());  
         } catch (Exception e) {  
             throw new CustomException("Unable to read Lua script file.");  
+        } 
+
+        DefaultRedisScript<Long> script = new DefaultRedisScript<>();
+        script.setScriptText(lua);
+        script.setResultType(Long.class);
+        return script;
+    }
+    @Bean
+    DefaultRedisScript<Long> notePublishScript() {
+        Resource resource = resourceLoader.getResource("classpath:lua/notepublish.lua");  
+        String lua;  
+        try {  
+            lua = new String(resource.getInputStream().readAllBytes());  
+        } catch (Exception e) {  
+            log.error("Unable to read Lua script file.");
+            throw new CustomException("内部错误");  
+        } 
+
+        DefaultRedisScript<Long> script = new DefaultRedisScript<>();
+        script.setScriptText(lua);
+        script.setResultType(Long.class);
+        return script;
+    }
+    @Bean
+    DefaultRedisScript<Long> followPullScript() {
+        Resource resource = resourceLoader.getResource("classpath:lua/followpull.lua");  
+        String lua;  
+        try {  
+            lua = new String(resource.getInputStream().readAllBytes());  
+        } catch (Exception e) {  
+            log.error("Unable to read Lua script file.");
+            throw new CustomException("内部错误");  
         } 
 
         DefaultRedisScript<Long> script = new DefaultRedisScript<>();

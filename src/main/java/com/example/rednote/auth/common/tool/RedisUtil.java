@@ -3,6 +3,7 @@ package com.example.rednote.auth.common.tool;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.connection.stream.MapRecord;
 import org.springframework.data.redis.connection.stream.RecordId;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.hash.HashMapper;
 import org.springframework.stereotype.Component;
@@ -61,8 +62,9 @@ public class RedisUtil {
     public void trimZSet(String key,long min, long max) {
         stringRedisTemplate.opsForZSet().removeRange(key,min, max);
     }
-
-
+    public void trimZSetByscore(String key,long score) {
+        stringRedisTemplate.opsForZSet().removeRangeByScore(key, Double.NEGATIVE_INFINITY,score);
+    }
 
     public int getLiveTokenSize(Long userId){
         Set<String> jtiset = stringRedisTemplate.opsForSet().members( userTokenSetHeader+ userId);
@@ -133,6 +135,10 @@ public class RedisUtil {
 
     public RecordId sendStreamMessage(String stream, Map<String, String> body) {
         return stringRedisTemplate.opsForStream().add(MapRecord.create(stream, body));
+    }
+
+    public StringRedisTemplate gTemplate(){
+        return stringRedisTemplate;
     }
     
 }

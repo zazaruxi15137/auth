@@ -2,7 +2,35 @@ server:
     port: 8080
     error:
         path: /api/auth/error
+management:
+    endpoints:
+        web:
+            exposure:
+                include: health,metrics,prometheus
+    metrics:
+        tags:
+            application: feed-service
+        distribution:
+            percentiles-histogram:
+                http.server.requests: true
+                lua.exec: true
+                pipline.exec: true
+                social.follow: true
+                social.unfollow: true
+                note.publish: true
+                note.update: true
+                note.page.query: true
+                note.single.query: true
+                idempotency.first.latency: true
+            percentiles:
+                all: 0.5,0.95,0.99
+    server:
+        servlet:
+            base-path: /
+
+
 spring:
+    respondCacheSize: 5120 # KB
     storePath: D:\rednoteUpload\images
     jackson:
         default-property-inclusion: NON_NULL
@@ -13,7 +41,10 @@ spring:
             max-request-size: 50MB
             file-size-threshold: 10MB
             location: /tmp
+
     redis:
+        cache_bound: 5
+        cache_min_Time: 5
         expiration: 3600 #秒
         allowedOnlineNum: 5
         userTokenSetHeader: "user:token:"
@@ -24,11 +55,11 @@ spring:
             database: 0           # 选择数据库 0-15
             timeout: 6000ms       # 连接超时
             lettuce:
-            pool:
-                max-active: 20    # 最大连接数
-                max-wait: 1000ms  # 最大等待时间
-                max-idle: 10      # 最大空闲连接
-                min-idle: 5       # 最小空闲连接
+                pool:
+                    max-active: 20    # 最大连接数
+                    max-wait: 1000ms  # 最大等待时间
+                    max-idle: 10      # 最大空闲连接
+                    min-idle: 5       # 最小空闲连接
     datasource:
         url: jdbc:postgresql://localhost:5432/rednote
         username: postgres 
@@ -71,14 +102,18 @@ springdoc:
     version: v1.0
 app:
     feed:
+        mod: mix
+        shard: 10000
         inbox-max-size: 2000       # 每个用户收件箱最多保留多少条
+        box-exprir-time: 3   # 发件箱过期时间 天
         outbox-max-size: 500           # 每个大v发布笔记保存数量
         follow-bigV-exprir: 24        #维护的每个用户关注的bigV集合过期时间 /hour
-        bigV-pull-size: 5           #最多拉取每个大v笔记的数量
+        bigV-pull-size: 0.25           #最多拉取每个大v笔记的数量 需求size的比例/meiren
         dedup-ttl-seconds: 172800  # 去重键2天过期
         stream-group: note-push    # 消费者组
         batch-size: 500            # 每批推送粉丝条数
         bigv-threshold: 20     # 超大V阈值（粉丝数）
+        follow-pull-size: 10  #关注后拉取笔记数量
         stream:
             name: note-published
             batch-size: 10

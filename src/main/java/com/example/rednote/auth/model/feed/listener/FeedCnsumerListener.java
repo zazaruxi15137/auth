@@ -67,16 +67,17 @@ public class FeedCnsumerListener {
 
     private void handleMessage(MapRecord<String, String, String> rec) {
         try {
+            // Thread currentThread = Thread.currentThread();
+            // log.info("Thread: {}, recordId={}", currentThread.getName(), rec.getId());
             Map<String, String> m =  rec.getValue();
             long authorId = Long.parseLong(Objects.toString(m.get("authorId")));
             long noteId   = Long.parseLong(Objects.toString(m.get("noteId")));
             long ts       = Long.parseLong(Objects.toString(m.get("tsMillis")));
 
             handler.handle(authorId, noteId, ts);
-
             redis.opsForStream().acknowledge(stream, group, rec.getId());
         } catch (Exception e) {
-            log.error("handle failed, recordId={},ex={}", rec.getId(), e.getMessage());
+            log.error("handle failed, recordId={},ex={}.消息pending", rec.getId(), e.getMessage());
         }
     }
 
