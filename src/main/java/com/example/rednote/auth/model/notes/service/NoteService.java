@@ -4,6 +4,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.springframework.data.domain.Page;
@@ -25,7 +26,10 @@ public interface NoteService {
                            Long currentUserId,
                             String title,
                             String content,
+                            boolean isPublic,
                            List<String> removeUrls,
-                            MultipartFile[] addImages);
+                            MultipartFile[] addImages); 
+
+    public Map<Long, Note> findReadableMap(long userId, List<Long> ids);
     
 }

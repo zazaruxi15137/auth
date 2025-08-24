@@ -1,10 +1,14 @@
 package com.example.rednote.auth.common.service;
 
+import java.util.List;
+
 import org.springframework.context.ResourceLoaderAware;
 import org.springframework.context.annotation.Bean;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.scripting.support.ResourceScriptSource;
 import org.springframework.stereotype.Service;
 import com.example.rednote.auth.common.exception.CustomException;
 import lombok.RequiredArgsConstructor;
@@ -75,6 +79,13 @@ public class LuaScriptService implements ResourceLoaderAware{
         DefaultRedisScript<Long> script = new DefaultRedisScript<>();
         script.setScriptText(lua);
         script.setResultType(Long.class);
+        return script;
+    }
+    @Bean
+    public DefaultRedisScript<List> rateLimitScript() {
+        DefaultRedisScript<List> script = new DefaultRedisScript<>();
+        script.setScriptSource(new ResourceScriptSource(new ClassPathResource("lua/tokenbucket.lua")));
+        script.setResultType(List.class);
         return script;
     }
 }

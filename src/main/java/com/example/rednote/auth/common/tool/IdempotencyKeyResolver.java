@@ -36,7 +36,6 @@ public class IdempotencyKeyResolver {
             ctx.setVariable("path", pathVars(req));
             ctx.setVariable("userId", userId);
             ctx.setVariable("args", args != null ? args : new Object[0]);
-
             String val = null;
             if (StringUtils.hasText(spel)) {
                 Expression exp = EXPR_CACHE.computeIfAbsent(spel, PARSER::parseExpression);

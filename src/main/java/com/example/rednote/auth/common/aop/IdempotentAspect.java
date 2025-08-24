@@ -35,6 +35,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.ThreadLocalRandom;
 
 @Aspect
 @Component
@@ -69,7 +70,14 @@ public class IdempotentAspect {
             "  if r then return {'REPLAY', r}; else return {'REPLAY',''}; end; " +
             "end; " +
             "return {'PROCESSING', ''};",
-            List.class
+            List.class 
+    );
+    @SuppressWarnings("rawtypes")
+    private static final DefaultRedisScript<Boolean> ROLLBACK_IF_P = new DefaultRedisScript<>(
+        // KEYS[1]=idemKey
+        "local v = redis.call('GET', KEYS[1]); "+
+        "if v == 'P' then redis.call('DEL', KEYS[1]); return true else return false end;",
+        Boolean.class
     );
 
     @Around("@annotation(anno)")
@@ -84,14 +92,24 @@ public class IdempotentAspect {
             return pjp.proceed();
         }
 
-        final String endpoint = Optional.ofNullable(
-                (String) req.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE)
-        ).orElse(req.getRequestURI());
+        final String endpoint = Optional.ofNullable(req.getRequestURI()
+                
+        ).orElse((String) req.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE));
 
         // 入口请求计数
         safeCount(MetricsNames.IDEMPOTENCY_REQUESTS_TOTAL, "endpoint", endpoint, "method", method, "enabled", "true");
 
         long userId = currentUserIdOrZero(); 
+        //未取到用户id使用请求指纹分片
+        String anonFp = null;
+        if (userId == 0L) {
+            String ip = Optional.ofNullable(req.getHeader("X-Forwarded-For"))
+                                .map(s -> s.split(",")[0].trim())
+                                .orElse(req.getRemoteAddr());
+            String ua = Optional.ofNullable(req.getHeader("User-Agent")).orElse("UA");
+            anonFp = Integer.toUnsignedString((ip + "|" + ua).hashCode());
+        }
+
         String bizKey = IdempotencyKeyResolver.resolve(anno.key(), pjp.getArgs(), req, userId, anno.required());
         if (!StringUtils.hasText(bizKey)) {
             // 必须携带时，缺失直接返回 428
@@ -99,10 +117,22 @@ public class IdempotentAspect {
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(json("{\"code\":\"IDEMPOTENCY_KEY_REQUIRED\",\"message\":\"Missing Idempotency-Key\"}"));
         }
-
-        String idemKey = "idem:" + endpoint + ":" + userId + ":" + bizKey;
+        int SHARDS = 128;
+        int slotInt = (userId != 0L) ? (int)(Math.floorMod(userId, SHARDS))
+                             : Math.floorMod(anonFp.hashCode(), SHARDS);
+        
+        String idemKey = "{"+slotInt+"}:idem:" + endpoint + ":" + userId + ":" + bizKey;
+        log.info(idemKey);
         String respKey = idemKey + ":resp";
         String ttlStr = String.valueOf(anno.ttlSeconds());
+        long ttl = anno.ttlSeconds();            // 你的固定 TTL（对外 SLA）
+        double jitterRatio = 0.05;              // 5% 抖动
+        int maxJitter = Math.max(1, (int)Math.floor(ttl * jitterRatio));
+        // 只向下抖动，避免“超过配置 TTL”导致语义歧义
+        long ttlWithJitter = Math.max(1, ttl - ThreadLocalRandom.current().nextInt(0, maxJitter + 1));
+
+// 用途：仅用于写入 D/respKey 的过期；P 锁仍用固定/watchdog 续期
+
 
         List<?> res;
         Timer.Sample s = Timer.start(meter);
@@ -127,6 +157,7 @@ public class IdempotentAspect {
             case "PROCESSING":
                 safeCount(MetricsNames.IDEMPOTENT_HIT,"endpoint", endpoint, "method", method, "outcome", "PROCESSING");
                 safeCount(MetricsNames.IDEMPOTENCY_RESULT_TOTAL, "endpoint", endpoint, "method", method, "outcome", "PROCESSING");
+                
                 return ResponseEntity.status(409)
                         .contentType(MediaType.APPLICATION_JSON)
                         .body(json("{\"code\":\"DUPLICATE_PROCESSING\",\"message\":\"Duplicate request is processing\"}"));
@@ -137,10 +168,11 @@ public class IdempotentAspect {
                     // 回放缓存的响应（带状态码）
                     CachedResp cr = parseCached(cached);
                     if (cr != null) {
+                        log.info("sdsadas{},{}",cr.status);
                         MediaType ct = StringUtils.hasText(cr.contentType) ? MediaType.parseMediaType(cr.contentType) : MediaType.APPLICATION_JSON;
                         return ResponseEntity.status(cr.status > 0 ? cr.status : 200)
                                 .contentType(ct)
-                                .body(cr.RespondMessage);
+                                .body(json(cr.RespondMessage));
                     }
                     // 兼容旧值：直接回放 JSON 字符串
                     return ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON).body(RespondMessage.success(cached));
@@ -165,30 +197,37 @@ public class IdempotentAspect {
                     try {
                         // 异常则允许重试（删除 'P' 占位）；成功则标记完成并缓存响应
                         if (error != null) {
-                            redis.delete(idemKey);
+                            redis.execute(ROLLBACK_IF_P,List.of(idemKey));
                         } else {
                             if (anno.storeResponse()) {
                                 // 仅缓存 2xx 且体积不大且 Content-Type 为 JSON
                                 CachedResp cr = toCached(result);
-                                boolean is2xx = cr.status >= 200 && cr.status < 300;
+                                // boolean is2xx = cr.status >= 200 && cr.status < 300;
                                 int bytes = cr.RespondMessage != null ? cr.RespondMessage.getBytes(StandardCharsets.UTF_8).length : 0;
                                 boolean isJson = (cr.contentType != null && cr.contentType.toLowerCase().contains("application/json"));
-                                if (is2xx && isJson && bytes <= respondCacheSize) {  // 阈值可配置
+                                if (isJson && bytes <= respondCacheSize) {  // 阈值可配置
                                     String cachedJson = objectMapper.writeValueAsString(cr);
-                                    redis.opsForValue().set(respKey, cachedJson, Duration.ofSeconds(anno.ttlSeconds()));
+                                    redis.opsForValue().set(respKey, cachedJson, Duration.ofSeconds(ttlWithJitter));
                                 }else{
+                                    redis.opsForValue().set(
+                                        respKey,
+                                        objectMapper.writeValueAsString( new CachedResp(cr.status)), 
+                                        Duration.ofSeconds(ttlWithJitter)
+                                        );
+                                    //
                                     safeCount(MetricsNames.IDEMPOTENCY_CACHE_SKIP_TOTAL, "reason","缓存体为空或者过大");
                                     log.info("跳过缓存，缓存体为空或者过大");
                                 }
                             }
                             // 标记完成
-                            redis.opsForValue().set(idemKey, "D", Duration.ofSeconds(anno.ttlSeconds()));
+                            redis.opsForValue().set(idemKey, "D", Duration.ofSeconds(ttlWithJitter));
                         }
                     } catch (Exception ignore) {
                         // 缓存/标记失败不影响主流程
                     }finally{
                         s2.stop(Timer.builder(MetricsNames.IDEMPOTENCY_FIRST_LATENCY_TIMER)
                             .tags("endpoint",endpoint,"method",method,"outcome", "NEW")
+                            .publishPercentileHistogram()
                             .register(meter));
                                 }}
             default:
@@ -252,6 +291,9 @@ public class IdempotentAspect {
         public String RespondMessage;
 
         public CachedResp() {}
+        public CachedResp(int status) {
+            this.status = status;
+        }
         public CachedResp(int status, String contentType, String bodyJson) {
             this.status = status;
             this.contentType = contentType;

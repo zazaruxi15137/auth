@@ -39,5 +39,8 @@ public class NoteRequestDto implements Serializable {
     @NotNull
     private List<String> imagesUrls;
 
+    @Schema(description = "是否公开", example = "true")
+    @NotNull
+    private boolean isPublic;
 
 }

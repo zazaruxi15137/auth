@@ -1,9 +1,10 @@
 -- KEYS:
 -- 1: inbox zset key
 -- 2: dup key
-
+-- 3: index zset key                (ZSET，作者索引：inbox:{uid}:byAuthor:{aid})
 local inbox     = KEYS[1]
 local dup       = KEYS[2]
+local indexKey  = KEYS[3]
 
 -- ARGV:
 -- 1: score (number; 与 timeUnit 一致)
@@ -25,6 +26,7 @@ local dupTtlUnit  = ARGV[7] or "s"
 -- 参数基本校验
 if not inbox or inbox == "" then return redis.error_reply("inbox key required") end
 if not dup or dup == "" then return redis.error_reply("dup key required") end
+if not indexKey or indexKey == ""     then return redis.error_reply("index key required") end
 if not score then return redis.error_reply("score must be a number") end
 if not member or member == "" then return redis.error_reply("member required") end
 if not maxSize or maxSize <= 0 then return redis.error_reply("maxSize must be > 0") end
@@ -42,25 +44,31 @@ if not ok then
 end
 
 -- 先按 score 裁剪过期数据（保证 score 单位与 timeUnit 一致）
-if expireDays and expireDays > 0 then
+if expireDays > 0 then
+  local t = redis.call('TIME')               -- {sec, usec}
+  local now_ms = tonumber(t[1]) * 1000 + math.floor(tonumber(t[2]) / 1000)
   local oneDay = (timeUnit == "s") and 86400 or 86400000
-  local cutoff = score - expireDays * oneDay
+  local now    = (timeUnit == "s") and math.floor(now_ms / 1000) or now_ms
+  local cutoff = now - expireDays * oneDay
   -- 严格小于 cutoff 的都删掉
   redis.call('ZREMRANGEBYSCORE', inbox, '-inf', '(' .. tostring(cutoff))
+  redis.call('ZREMRANGEBYSCORE', indexKey, '-inf', '(' .. tostring(cutoff))
 
   -- 为整个 zset 设置 TTL（单位与 Redis 命令对应）
   -- 注意：过期天数对集合整体生效，新的写入会刷新 TTL（你现在的写法每次都会刷新）
   local ttl = expireDays * ((timeUnit == "s") and 86400 or 86400000)
   if timeUnit == "ms" then
     redis.call('PEXPIRE', inbox, ttl)
+    redis.call('PEXPIRE', indexKey, ttl)
   else
     redis.call('EXPIRE', inbox, ttl)
+    redis.call('EXPIRE', indexKey, ttl)
   end
 end
 
 -- 写入并按容量裁剪
 redis.call('ZADD', inbox, score, member)
-
+redis.call('ZADD', indexKey, score, member)
 local size = redis.call('ZCARD', inbox)
 if size > maxSize then
   local removeCount = size - maxSize

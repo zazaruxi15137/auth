@@ -8,6 +8,8 @@ management:
             exposure:
                 include: health,metrics,prometheus
     metrics:
+        export:
+            step: 5s
         tags:
             application: feed-service
         distribution:
@@ -70,6 +72,12 @@ spring:
             max-active: 50
             max-idle: 25
             min-idle: 5
+        hikari:
+            max-lifetime: 1500000     # 25 min（示例：比对方闲置/回收阈值再短几分钟）
+            idle-timeout: 600000      # 10 min，空闲太久就回收
+            keepalive-time: 300000    # 5 min，定期轻 ping 防止中间设备回收（Hikari 3.4.1+）
+            validation-timeout: 5000  # 5s
+            maximum-pool-size: 30     # 按你压测需要来，非为此告警设置
     jpa:
         hibernate: 
             dialect: org.hibernate.dialect.PostgreSQLDialect
@@ -101,19 +109,20 @@ springdoc:
     description: 这是你的API说明
     version: v1.0
 app:
+    shard: 128
     feed:
         mod: mix
         shard: 10000
         inbox-max-size: 2000       # 每个用户收件箱最多保留多少条
         box-exprir-time: 3   # 发件箱过期时间 天
-        outbox-max-size: 500           # 每个大v发布笔记保存数量
+        outbox-max-size: 500           # 每个人发布笔记保存数量
         follow-bigV-exprir: 24        #维护的每个用户关注的bigV集合过期时间 /hour
         bigV-pull-size: 0.25           #最多拉取每个大v笔记的数量 需求size的比例/meiren
         dedup-ttl-seconds: 172800  # 去重键2天过期
         stream-group: note-push    # 消费者组
         batch-size: 500            # 每批推送粉丝条数
         bigv-threshold: 20     # 超大V阈值（粉丝数）
-        follow-pull-size: 10  #关注后拉取笔记数量
+        follow-pull-size: 30  #关注后拉取笔记数量
         stream:
             name: note-published
             batch-size: 10
@@ -128,3 +137,37 @@ app:
         # retry:
         #     max-attempts: 3                  # 重试次数
         #     ttl-seconds: 3600                 # 重试计数键TTL
+metrics:
+    probe:
+        enabled: true
+        interval: 30s
+        streams:
+            note-published: [ note-push ]
+        inbox-user-set-key: "users:active"
+        inbox-sample-users: 100
+        inbox-topn-per-user: 20
+
+ratelimit:
+    default-cap: 400
+    default-rate-per-sec: 150
+    default-idle-ttl-sec: 600
+    per-api-bucket: true
+    ip-first-for-anonymous: true
+    path-cost:
+        /api/notes: 5           # 发布/更新笔记 cost=5
+        /api/users: 2           # 关注/取关 cost=2
+        /api/feed: 1            # 拉取feed cost=1
+    ignore-paths:
+        - /actuator
+        - /v3/api-docs
+        - /swagger
+        - /image
+        - /admin
+# 本机阻塞桶
+local:
+    bucket:
+        enabled: true
+        capacity: 300            # ≈ tomcat maxThreads(200) * 2
+        rate-per-second: 150      # 每实例目标RPS
+        refill-period-ms: 50
+        acquire-timeout-ms: 1000    # 等不到就 429

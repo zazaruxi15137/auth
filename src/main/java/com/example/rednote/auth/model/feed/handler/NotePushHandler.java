@@ -18,7 +18,6 @@ import com.example.rednote.auth.common.tool.SerializaUtil;
 import com.example.rednote.auth.model.user.entity.UserFollow;
 import com.example.rednote.auth.model.user.service.UserFollowService;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.io.JsonEOFException;
 import io.micrometer.core.instrument.*;
 import jakarta.annotation.PostConstruct;
 import java.nio.charset.StandardCharsets;
@@ -38,7 +37,8 @@ public class NotePushHandler {
     @Value("${app.feed.batch-size}") private int batchSize;
     @Value("${app.feed.inbox-max-size}") private int inboxMaxSize;
     @Value("${app.feed.dedup-ttl-seconds}") private int dedupTtlSeconds;
-    @Value("${app.feed.box-exprir-time}") private int exprirTime;                                                           
+    @Value("${app.feed.box-exprir-time}") private int exprirTime;  
+    @Value("${app.shard}")private int shard;                                                         
     
 
     private volatile String sha1;
@@ -59,15 +59,15 @@ public class NotePushHandler {
             var p = userFollowService.pageFollowers(authorId, PageRequest.of(page, batchSize));
             if (p.isEmpty()) break;
             List<Long> uids = p.map(UserFollow::getFollowerId).toList();
-            pushBatch(uids, noteId, ts);
+            pushBatch(uids, authorId, noteId, ts);
             page++;
             if (!p.hasNext()) break;
         }
     }
 
-    private void pushBatch(List<Long> userIds, long noteId, long tsMillis) {
+    private void pushBatch(List<Long> userIds,long authorId, long noteId, long tsMillis) {
         try {
-            doPushBatch(userIds, noteId, tsMillis, sha1);
+            doPushBatch(userIds, authorId, noteId, tsMillis, sha1);
         } catch (Exception ex) {
             try{
                 log.error("笔记{}批量推送失败用户id为{}",noteId, SerializaUtil.toJson(userIds));
@@ -80,13 +80,14 @@ public class NotePushHandler {
         }
     }
 
-    private void doPushBatch(List<Long> userIds, long noteId, long tsMillis, String sha1) {
+    private void doPushBatch(List<Long> userIds ,long authorId , long noteId, long tsMillis, String sha1) {
         Timer.Sample s = Timer.start(meter);
         try {
         redis.executePipelined((RedisCallback<Object>) con -> {
             for (Long uid : userIds) {
-                byte[] k1 = KeysUtil.redisInboxKey(uid).getBytes(StandardCharsets.UTF_8);
+                byte[] k1 = KeysUtil.redisInboxKey(uid, uid % shard).getBytes(StandardCharsets.UTF_8);
                 byte[] k2 = KeysUtil.redisPushDedupKey(noteId, uid).getBytes(StandardCharsets.UTF_8);
+                byte[] k3 = KeysUtil.redisInboxAuthorIndex(uid, authorId).getBytes(StandardCharsets.UTF_8);
                 byte[] a1 = String.valueOf(tsMillis).getBytes(StandardCharsets.UTF_8); // sorce
                 byte[] a2 = String.valueOf(noteId).getBytes(StandardCharsets.UTF_8);
                 byte[] a3 = String.valueOf(inboxMaxSize).getBytes(StandardCharsets.UTF_8); //box最大尺寸
@@ -94,9 +95,9 @@ public class NotePushHandler {
                 byte[] days   = String.valueOf(exprirTime).getBytes(StandardCharsets.UTF_8); //过期时间以及note保留时间
                 byte[] unit   = "ms".getBytes(StandardCharsets.UTF_8); //默认毫秒 可以传入s、ms
 
-                byte[][] keysAndArgs = new byte[][]{ k1, k2, a1, a2, a3, a4, days, unit};
+                byte[][] keysAndArgs = new byte[][]{ k1, k2, k3, a1, a2, a3, a4, days, unit};
                 try{
-                    con.scriptingCommands().evalSha(sha1, ReturnType.INTEGER, 2, keysAndArgs);
+                    con.scriptingCommands().evalSha(sha1, ReturnType.INTEGER, 3, keysAndArgs);
                 }catch(Exception e){
                     log.error("push note {} to user {} failed,because:{}", noteId, uid, e.getMessage());
                 }

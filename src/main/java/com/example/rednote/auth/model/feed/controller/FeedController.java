@@ -67,26 +67,20 @@ public class FeedController {
     
     public ResponseEntity<Object> getFeed(
         @AuthenticationPrincipal JwtUser jwtUser,
-        @RequestParam(required = false)
+        @RequestParam(required = false,defaultValue = "0")
         @Parameter(description = "上次返回的最末条 score（毫秒）", required = false)
         @PositiveOrZero
         Long cursor,
         @RequestParam(defaultValue = "20")
         @Parameter(description = "每页数据量", required = true)
-        int size
-        //     ,
-        //     @RequestParam(required = false)
-        //     Long userId
+        int size,
+        @RequestParam(defaultValue = "0")
+        @Parameter(description = "下条笔记Id", required = false)
+        int noteId
         ) {
         long userId = jwtUser.getId();
         //检查缓存中是否存在
-        if(redisTemplate.hasKey(KeysUtil.redisUserFeedCacheKey(userId, cursor, size))){
-                meter.counter(MetricsNames.IDEMPOTENT_HIT, "service","feed").increment();
-                return ResponseEntity.ok(
-                        RespondMessage.success(
-                                "拉取成功", 
-                                redisTemplate.get(KeysUtil.redisUserFeedCacheKey(userId, cursor, size))));
-        }
+
         if (!redisTemplate.hasKey(KeysUtil.redisFollowedBigVKey(userId))) {
                 List<Long> bigvAuthors = userFollowRepository.findBigvAuthors(userId, bigvThreshold);
                 if (!bigvAuthors.isEmpty()) {
@@ -100,18 +94,7 @@ public class FeedController {
         //缓存查到的数据
         FeedRespond<NoteRespondDto> res = Timer.builder(MetricsNames.FEED_TIMELINE_TIMER)
                                 .register(meter)
-                                .record(() ->feedService.getFeed(userId, cursor, size));
-        try{
-                redisTemplate.set(
-                KeysUtil.redisUserFeedCacheKey(userId, cursor, size), 
-                SerializaUtil.toJson(res),
-                minTime+r.nextLong(bound),
-                TimeUnit.SECONDS);
-        }catch(Exception ignord){
-                log.warn("Feed 数据缓存失败{}",ignord.getMessage() );
-        }
-        
-        
+                                .record(() ->feedService.getFeed(userId, cursor, size, noteId));
         return ResponseEntity.ok(RespondMessage.success(
                 "拉取成功", 
                 res

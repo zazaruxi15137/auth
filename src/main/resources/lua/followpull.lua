@@ -9,46 +9,53 @@
 
 local outboxKey   = KEYS[1]
 local inboxKey    = KEYS[2]
+local indexKey = KEYS[3]
+-- local blackKey    = KEYS[4]
+
 
 local fetchCount  = tonumber(ARGV[1]) or 20
 local maxSize     = tonumber(ARGV[2]) or 0
 local expireDays  = tonumber(ARGV[3]) or 0
 local timeUnit    = ARGV[4] or "ms"
 
+
+
 -- 1) 取作者 outbox 最新 N 条 (member, score 成对返回)
 local res = redis.call('ZREVRANGE', outboxKey, 0, fetchCount - 1, 'WITHSCORES')
+
+local pushed = 0
+local unblacked = 0
 
 -- 2) 批量 ZADD 到 inbox
 if #res > 0 then
   local args = {inboxKey}
-  local members = {}  -- 用于写入索引集合
+  local members = {indexKey}  -- 用于写入索引集合
 
   for i = 1, #res, 2 do
     local member = res[i]
     local score  = tonumber(res[i+1])
     table.insert(args, score)
     table.insert(args, member)
-    -- table.insert(members, member)
+    table.insert(members, score)
+    table.insert(members, member)
   end
 
   redis.call('ZADD', unpack(args))
---   -- 3) 记录作者索引集合（用于取关快速删除）
---   if #members > 0 then
---     redis.call('SADD', indexSetKey, unpack(members))
---   end
+
+  -- 3) 记录作者索引集合（用于取关快速删除）
+  redis.call('ZADD', unpack(members))
+
 end
 
 -- 5) 按时间窗清理（以当前时间为基准）
 if expireDays > 0 then
-  local t = redis.call('TIME')  -- {sec, usec}
+  local t = redis.call('TIME')               -- {sec, usec}
   local now_ms = tonumber(t[1]) * 1000 + math.floor(tonumber(t[2]) / 1000)
-  local cutoff
-  if timeUnit == "s" then
-    cutoff = math.floor(now_ms / 1000) - expireDays * 86400
-  else
-    cutoff = now_ms - expireDays * 86400000
-  end
+  local oneDay = (timeUnit == "s") and 86400 or 86400000
+  local now    = (timeUnit == "s") and math.floor(now_ms / 1000) or now_ms
+  local cutoff = now - expireDays * oneDay
   redis.call('ZREMRANGEBYSCORE', inboxKey, '-inf', '(' .. cutoff)
+  redis.call('ZREMRANGEBYSCORE', indexKey, '-inf', '(' .. cutoff)
 end
 
 -- 4) 按 rank 裁剪 inbox（只保留最新 maxSize 条）

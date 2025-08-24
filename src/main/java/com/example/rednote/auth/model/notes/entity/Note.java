@@ -52,6 +52,9 @@ public class Note implements Serializable {
     @Column(name = "images_urls",columnDefinition = "jsonb", nullable=false)
     private List<String> imagesUrls;
 
+    @Column(nullable=false)
+    private boolean isPublic;
+
 
     public NoteRespondDto toNoteRespondDto(){
         return new NoteRespondDto(

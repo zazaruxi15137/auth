@@ -28,6 +28,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -38,6 +39,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -73,9 +75,11 @@ public class NoteController {
         @RequestParam @Positive @Parameter(description = "用户Id", required = true) Long userId,
         @RequestParam @Parameter(description = "笔记标题", required = true) String title,
         @RequestParam @Parameter(description = "笔记内容", required = true) String content,
+        @RequestParam(defaultValue = "true") @Parameter(description = "是否公开", required = true) boolean isPublic,
         @RequestPart(required = true) @Parameter(description = "笔记图片") MultipartFile[] images,
         @AuthenticationPrincipal JwtUser jwtUser
     ) throws JsonProcessingException {
+
         // 2. 校验作者 ID
         if (!jwtUser.getId().equals(userId)) {
             return ResponseEntity.status(403).body(RespondMessage.fail("userid incorrect:非法操作：不能为其他用户上传笔记"));
@@ -96,12 +100,13 @@ public class NoteController {
             note.setAuthor(new User(userId));
             note.setContent(content);
             note.setImagesUrls(List.of());
+            note.setPublic(isPublic);
             // 将图片 URL 转为 JSON 存储
-
-            
-
             // 5. 保存笔记
-
+            Set<String> pageKeys = redisUtil.memberOfSet(KeysUtil.redisNotePageCacheKeySet(userId));
+            if(pageKeys!=null && !pageKeys.isEmpty()){
+                redisUtil.delete(pageKeys);
+            }
             Note newNote = Timer.builder(MetricsNames.NOTE_PUBLISH_TIMER)
                 .register(meter)
                 .record(() -> noteService.save(note,images));
@@ -122,6 +127,7 @@ public class NoteController {
             @PathVariable @Positive Long noteId,
             @RequestParam(required = false) String title,
             @RequestParam(required = false) String content,
+            @RequestParam(required = false) boolean isPublic,
             @RequestParam(required = false) List<String> removeUrls,            // 要删除的图片URL列表
             @RequestPart(value = "addImages", required = false) MultipartFile[] addImages, // 新增图片
             @AuthenticationPrincipal JwtUser me // 你自定义的UserDetails，带 getId()
@@ -129,7 +135,7 @@ public class NoteController {
         
         Note updated = Timer.builder(MetricsNames.NOTE_UPDATE_TIMER)
                 .register(meter)
-                .record(() ->noteService.updateNote(noteId, me.getId(), title, content, removeUrls, addImages));
+                .record(() ->noteService.updateNote(noteId, me.getId(), title, content,isPublic, removeUrls, addImages));
         return RespondMessage.success("success", updated.toNoteRespondDto());
     }
 
@@ -148,25 +154,27 @@ public class NoteController {
         if(redisUtil.hasKey(KeysUtil.redisNoteNullKey(id))){
             return ResponseEntity.status(404).body(RespondMessage.withcode(404, "笔记不存在", null));
         }
-        if(redisUtil.hasKey(KeysUtil.redisNoteSingleCacheKey(id))){
-            meter.counter(MetricsNames.IDEMPOTENT_HIT, "service","note_sigle_query").increment();
-            return ResponseEntity.ok().body(RespondMessage.success(
-                "success"
-                ,KeysUtil.redisNoteSingleCacheKey(id)));
-        }
+        // if(redisUtil.hasKey(KeysUtil.redisNoteSingleCacheKey(id))){
+        //     meter.counter(MetricsNames.IDEMPOTENT_HIT, "service","note_sigle_query").increment();
+        //     log.info("缓存命中");
+        //     return ResponseEntity.ok().body(RespondMessage.success(
+        //         "success"
+        //         ,KeysUtil.redisNoteSingleCacheKey(id)));
+            
+        // }
         Note note = Timer.builder(MetricsNames.NOTE_SINGLE_QUERY)
                 .register(meter)
                 .record(() ->noteService.findById(id).orElse(null));
         if(note!=null){
-            try{
-               redisUtil.set(
-                KeysUtil.redisNoteSingleCacheKey(id), 
-                SerializaUtil.toJson(note.toNoteRespondDto()), 
-                minTime+r.nextLong(bound), 
-                TimeUnit.SECONDS); 
-            }catch(Exception ignored){
-                log.warn("笔记缓存失败(单条){}",ignored.getMessage());
-            }
+            // try{
+            //    redisUtil.set(
+            //     KeysUtil.redisNoteSingleCacheKey(id), 
+            //     SerializaUtil.toJson(note.toNoteRespondDto()), 
+            //     minTime+r.nextLong(bound), 
+            //     TimeUnit.SECONDS); 
+            // }catch(Exception ignored){
+            //     log.warn("笔记缓存失败(单条){}",ignored.getMessage());
+            // }
             
            return ResponseEntity.ok().body(RespondMessage.success("success"
            ,note.toNoteRespondDto())); 
@@ -188,33 +196,51 @@ public class NoteController {
         @RequestParam @Parameter(description = "页数", required = true) int page,
         @RequestParam @Parameter(description = "每页数据量", required = true) int size)
         {   
-        if(redisUtil.hasKey(KeysUtil.redisNotePageCacheKey(id, page, size))){
-            meter.counter(MetricsNames.IDEMPOTENT_HIT, "service","note_page_query").increment();
-            return ResponseEntity.ok().body(RespondMessage.success(
-                "查询成功"
-                ,redisUtil.get(KeysUtil.redisNotePageCacheKey(id, page, size))
-                ));
-        }
+        // if(redisUtil.hasKey(KeysUtil.redisNotePageCacheKey(id, page, size))){
+        //     meter.counter(MetricsNames.IDEMPOTENT_HIT, "service","note_page_query").increment();
+        //     log.info("缓存命中");
+        //     return ResponseEntity.ok().body(RespondMessage.success(
+        //         "查询成功"
+        //         ,redisUtil.get(KeysUtil.redisNotePageCacheKey(id, page, size))
+        //         ));
+        // }
         PageRequest pageable=PageRequest.of(page, size);
         Page<Note> data = Timer.builder(MetricsNames.NOTE_PAGE_QUERY)
                 .register(meter)
                 .record(() ->noteService.findNoteByPage(id, pageable));
 
             Page<NoteRespondDto> res = data.map(Note::toNoteRespondDto);
-        try{
-               redisUtil.set(
-                KeysUtil.redisNotePageCacheKey(id, page, size), 
-                SerializaUtil.toJson(res), 
-                minTime+r.nextLong(bound), 
-                TimeUnit.SECONDS); 
-            }catch(Exception ignored){
-                log.warn("笔记缓存失败(分页){}",ignored.getMessage());
-            }
+        // try{
+        //        redisUtil.set(
+        //         KeysUtil.redisNotePageCacheKey(id, page, size), 
+        //         SerializaUtil.toJson(res), 
+        //         minTime+r.nextLong(bound), 
+        //         TimeUnit.SECONDS); 
+        //         redisUtil.setToSet(KeysUtil.redisNotePageCacheKeySet(id), KeysUtil.redisNotePageCacheKey(id, page, size));
+        //     }catch(Exception ignored){
+        //         log.warn("笔记缓存失败(分页){}",ignored.getMessage());
+        //     }
             return ResponseEntity.ok().body(RespondMessage.success(
                 "查询成功"
                 ,res
                 )); 
     }
 
-    
+    // @Operation(summary = "拉黑笔记", description = "拉黑上传的笔记Id")
+    // @PreAuthorize("hasAuthority('sys:data:upload')")
+    // @PostMapping(value = "/notes/noteblacklist/{noteId}")
+    // @Idempotent
+    // public ResponseEntity<Object> noteblacklist(@PathVariable long noteId){
+    //     noteService.putBlackList(noteId);
+    //     ResponseEntity.ok().body(RespondMessage.success("拉黑成功"));
+    // }
+    // @Operation(summary = "解除笔记黑名单", description = "从黑名单中删除上传的笔记id")
+    // @PreAuthorize("hasAuthority('sys:data:upload')")
+    // @DeleteMapping(value = "/notes/noteblacklist/{noteId}")
+    // @Idempotent
+    // public ResponseEntity<Object> delNoteBlackList(@PathVariable long noteId){
+    //     noteService.removeBlackList(noteId);
+    //     ResponseEntity.ok().body(RespondMessage.success("拉黑成功"));
+    // }
+
 }

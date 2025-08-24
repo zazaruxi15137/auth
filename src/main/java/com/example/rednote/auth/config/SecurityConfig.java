@@ -1,5 +1,6 @@
 package com.example.rednote.auth.config;
 
+import org.springframework.cglib.core.Local;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -14,6 +15,8 @@ import org.springframework.security.web.authentication.logout.LogoutFilter;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import com.example.rednote.auth.security.filter.JwtAuthenticationFilter;
+import com.example.rednote.auth.security.filter.LocalBucketFilter;
+import com.example.rednote.auth.security.filter.RateLimitFilter;
 import com.example.rednote.auth.security.handler.MyLogoutSuccessfulHandler;
 import com.example.rednote.auth.security.handler.UserAccessDeniedHandler;
 import com.example.rednote.auth.security.handler.UserAuthenticationEntryPoint;
@@ -30,10 +33,12 @@ public class SecurityConfig {
 
     private final MyUserDetailsService myUserDetailsService;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final RateLimitFilter rateLimitFilter;
     private final UserAccessDeniedHandler userAccessDeniedHandler;
     private final UserAuthenticationEntryPoint userAuthenticationEntryPoint;
     private final UserLogoutHandler userLogoutHandler;
     private final MyLogoutSuccessfulHandler myLogoutSuccessfulHandler;
+    private final LocalBucketFilter localBucketFilter;
     /**
      * 配置安全过滤链
      */
@@ -54,8 +59,11 @@ public class SecurityConfig {
                         "/v3/api-docs/**",
                         "/swagger-ui.html").permitAll()
                     .requestMatchers("/images/**","/actuator/**").permitAll()
+                    .requestMatchers("/admin/ratelimit/**","/admin/local-bucket/**").hasRole("ADMIN")
                     .anyRequest().authenticated()) // 其他请求需要认证
             .addFilterBefore(jwtAuthenticationFilter, LogoutFilter.class)
+            .addFilterBefore(localBucketFilter, JwtAuthenticationFilter.class)
+            .addFilterAfter(rateLimitFilter, LogoutFilter.class)
             .userDetailsService(myUserDetailsService)
             .exceptionHandling(e -> e
                     .accessDeniedHandler(userAccessDeniedHandler)

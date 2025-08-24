@@ -16,5 +16,6 @@ public class FeedRespond<T> {
     private List<T> notes;
     private Boolean hasMore;
     private Long score;
+    private Long nextNoteId;
     private Integer size;
 }

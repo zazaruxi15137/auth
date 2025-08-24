@@ -1,9 +1,6 @@
 package com.example.rednote.auth.config;
 
 import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.task.TaskExecutor;
@@ -25,6 +22,18 @@ public class AsyncConfig {
         exec.setThreadNamePrefix("cleanup-");
         exec.initialize();
         log.info("cleanupExecutor initialized");
+        return exec;
+    }
+
+    @Bean(name = "serviceExecutor")
+    public TaskExecutor serviceExecutor() {
+        ThreadPoolTaskExecutor exec = new ThreadPoolTaskExecutor();
+        exec.setCorePoolSize(5);
+        exec.setMaxPoolSize(10);
+        exec.setQueueCapacity(100);
+        exec.setThreadNamePrefix("service-");
+        exec.initialize();
+        log.info("serviceExecutor initialized");
         return exec;
     }
 

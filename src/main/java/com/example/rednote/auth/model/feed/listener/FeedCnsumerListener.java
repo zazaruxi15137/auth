@@ -76,6 +76,7 @@ public class FeedCnsumerListener {
 
             handler.handle(authorId, noteId, ts);
             redis.opsForStream().acknowledge(stream, group, rec.getId());
+            redis.opsForStream().delete(rec);
         } catch (Exception e) {
             log.error("handle failed, recordId={},ex={}.消息pending", rec.getId(), e.getMessage());
         }

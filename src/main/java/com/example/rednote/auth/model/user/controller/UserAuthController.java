@@ -92,12 +92,13 @@ public class UserAuthController {
      * 登录接口
      */
     @PostMapping("/login")
-    @Idempotent()
     public ResponseEntity<Object> loginPage(@RequestBody @Valid LoginDto loginUserDto) throws JsonProcessingException {
         // 验证用户名密码是否正确
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(loginUserDto.getUsername(), loginUserDto.getPassword())
         );
+
+
         // 验证通过获取用户实体生成token
         if (!authentication.isAuthenticated()) {
             log.warn("用户登录失败: {}", loginUserDto.getUsername());

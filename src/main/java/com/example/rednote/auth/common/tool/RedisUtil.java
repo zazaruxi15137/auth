@@ -10,6 +10,8 @@ import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
 
+import java.time.Duration;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
@@ -39,12 +41,19 @@ public class RedisUtil {
     public void deleteFromSet(String key,String value) {
             stringRedisTemplate.opsForSet().remove(key, value);
         }
+    public Set<String> memberOfSet(String key) {
+            return stringRedisTemplate.opsForSet().members(key);
+        }
     /**
      * 保存数据到集合中（带过期时间）
      */
     public void setToSet(String key, String value, long timeout, TimeUnit unit) {
         stringRedisTemplate.opsForSet().add(key, value);
         stringRedisTemplate.expire(key, timeout, unit);
+    }
+    public void setToSet(String key, String value) {
+        stringRedisTemplate.opsForSet().add(key, value);
+
     }
 
     public void setAllToSet(String key, String[] value, long timeout, TimeUnit unit) {
@@ -99,7 +108,9 @@ public class RedisUtil {
     public boolean delete(String key) {
         return Boolean.TRUE.equals(stringRedisTemplate.delete(key));
     }
-
+    public long delete(Collection<String> key) {
+            return stringRedisTemplate.delete(key);
+        }
     
 
     /**

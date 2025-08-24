@@ -1,5 +1,7 @@
 package com.example.rednote.auth.config;
 
+import java.util.Random;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
@@ -10,6 +12,10 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 @Configuration
 public class RedisConfig {
 
+    @Bean
+    Random getRandom(){
+        return new Random();
+    }
     @Bean
     public RedisConnectionFactory redisConnectionFactory() {
         return new LettuceConnectionFactory(); // 读取 spring.redis.* 配置
