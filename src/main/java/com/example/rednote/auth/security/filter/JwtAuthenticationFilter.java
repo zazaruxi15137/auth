@@ -10,6 +10,8 @@ import jakarta.servlet.http.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
@@ -18,7 +20,10 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.beans.factory.annotation.Value;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+
 import java.util.Date;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import com.example.rednote.auth.common.tool.RedisUtil;
@@ -63,15 +68,25 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String token = header.substring(prefix.length());
         Claims claims = null;
-        JwtUser jwtUser = null;
+        JwtUser jwtUser = new JwtUser();
         String jti = null;
         // 验证token
         try {
             claims = jwtUtil.parserJWT(token);
             jti = claims.getId();
+            jwtUser.setId(claims.get("uid", Long.class));
+            jwtUser.setUsername(claims.get("uname", String.class));
+            jwtUser.setRoles(claims.get("roles", String.class));
+            // 权限字符串 -> SimpleGrantedAuthority
+            List<String> authCodes = SerializaUtil.fromJson(
+                claims.get("auth",String.class),
+                new TypeReference<List<String>>(){}
+                );
+            List<SimpleGrantedAuthority> authorities = authCodes.stream()
+            .map(SimpleGrantedAuthority::new)
+            .toList();
+            jwtUser.setAuthorities(authorities);
             Date exp = claims.getExpiration();
-            jwtUser = SerializaUtil.fromJson(claims.getSubject(), JwtUser.class);
-
             // 黑名单提前校验
             if (redisUtil.hasKey(blackTokenHeader + jti)) {
                 writeError(response, 401, "登录失效，请重新登录");
@@ -99,19 +114,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
         // 尝试构建用户权限
         if (jwtUser != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-            String[] authorities = jwtUser.getPermission() == null
-                ? new String[0] : jwtUser.getPermission().toArray(new String[0]);
-            UserDetails userDetails = org.springframework.security.core.userdetails.User
-                .withUsername(jwtUser.getUsername())
-                .password("")
-                .authorities(authorities)
-                .build();
+
             UsernamePasswordAuthenticationToken authToken =
-                new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+                new UsernamePasswordAuthenticationToken(jwtUser, null, jwtUser.getAuthorities());
             authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
             SecurityContextHolder.getContext().setAuthentication(authToken);
         }
-
         chain.doFilter(request, response);
     }
 

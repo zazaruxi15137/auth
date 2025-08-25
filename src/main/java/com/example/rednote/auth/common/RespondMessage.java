@@ -24,6 +24,9 @@ public class RespondMessage<T> {
     public static <T> RespondMessage<T> success(String message) {
         return new RespondMessage<>(message, 200, null);
     }
+    public static <T> RespondMessage<T> withcode(int code,String message,T data) {
+        return new RespondMessage<>(message,code , data);
+    }
 
 
     public static <T> RespondMessage<T> success(String message, T data) {

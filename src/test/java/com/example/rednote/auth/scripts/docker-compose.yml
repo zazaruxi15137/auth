@@ -1,0 +1,44 @@
+name: scripts
+services:
+  k6:
+    image: grafana/k6:0.49.0
+    container_name: k6
+    working_dir: /scripts
+
+    command: ["run", "smoke.js"]
+    environment:
+      BASE_URL: "http://host.docker.internal:8080"
+      READ_PATH: "/api/feed?size=5&cursor=0"   # ← 原来的 PATH 改名，避免覆盖系统 PATH
+      DURATION: "600s"
+      # IDEMP: "fixed-key-001"
+      RATE: "200"
+      VUS: "100"
+      MAX_VUS: "200"
+      TOKEN: "Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0dXNlcjIiLCJ1aWQiOjMsImF1dGgiOiJbXCJST0xFX0FETUlOXCIsXCJzeXM6dXNlcjphZGRcIixcInN5czp1c2VyOmVkaXRcIixcInN5czp1c2VyOmRlbGV0ZVwiLFwic3lzOnVzZXI6dmlld1wiLFwic3lzOmNvbmZpZzphbGxcIixcInN5czpkYXRhOmVkaXRcIixcInN5czpkYXRhOmRlbGV0ZVwiLFwic3lzOmRhdGE6dmlld1wiLFwic3lzOnByb2ZpbGU6ZWRpdFwiLFwic3lzOmRhdGE6dXBsb2FkXCJdIiwicm9sZXMiOiJST0xFX0FETUlOIiwiaWF0IjoxNzU2MDc1MzE0LCJleHAiOjE3NTYwODI1MTQsImp0aSI6Ijc3MzAxODQ3LTdiMWEtNGQzNC1iNjY5LTY0ZDE1NTg0MTEzNSJ9.yMTKzsKhHtPo_Tdd29W1gIzjCIs5h9vG6k7dWVTyRsg"   # ← 有空格必须加引号
+    extra_hosts:
+      - "host.docker.internal:host-gateway"    # ← 用冒号
+    # command: ["run", "smoke-upload.js","--http-debug=headers"]
+    # environment:
+    #   BASE_URL: "http://host.docker.internal:8080"
+    #   WRITE_PATH: "/api/notes"
+    #   TOKEN: "Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0dXNlcjE2IiwidWlkIjoxMSwiYXV0aCI6IltcIlJPTEVfVVNFUlwiLFwic3lzOmRhdGE6dmlld1wiLFwic3lzOnByb2ZpbGU6ZWRpdFwiLFwic3lzOmRhdGE6dXBsb2FkXCJdIiwicm9sZXMiOiJST0xFX1VTRVIiLCJpYXQiOjE3NTU5MDE1OTgsImV4cCI6MTc1NTkwODc5OCwianRpIjoiMmVmMDFiMTMtOTk1NC00OTcwLTllZGItODhiYzE1YzQ2YThiIn0.204l_vT4GgG5LQzw0dM-owcK2YwqEVs1mundiS8aXjk"
+    #   USER_ID: "11"
+    #   # IDEMP: "midengmingzhong"            # 固定重放就给一个固定值；留空每次唯一
+    #   IMG1: "assets/pic1.jpg"
+    #   IMG2: "assets/pic2.jpg"
+    #   RATE: "50"
+    #   DURATION: "120s"
+    #   VUS: "50"
+    #   MAX_VUS: "100"
+    volumes:
+      - type: bind
+        source: D:\auth\src\test\java\com\example\rednote\auth\scripts\k6
+        target: /scripts
+        bind: { create_host_path: true }
+      - type: bind
+        source: D:\auth\src\test\java\com\example\rednote\auth\scripts\results
+        target: /results                         # ← 修正拼写
+        bind: { create_host_path: true }
+networks:
+  default:
+    name: scripts_default

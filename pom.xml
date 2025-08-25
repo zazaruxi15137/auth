@@ -44,6 +44,18 @@
 			<version>3.5.4</version>
 		</dependency>
 		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-actuator</artifactId>
+			</dependency>
+			<dependency>
+			<groupId>io.micrometer</groupId>
+			<artifactId>micrometer-registry-prometheus</artifactId>
+			</dependency>
+			<dependency>
+				<groupId>org.apache.commons</groupId>
+				<artifactId>commons-pool2</artifactId>
+				</dependency>
+		<dependency>
 			<groupId>org.hibernate.validator</groupId>
 			<artifactId>hibernate-validator</artifactId>
 		</dependency>
@@ -124,6 +136,26 @@
 					</annotationProcessorPaths>
 				</configuration>
 			</plugin>
+			<plugin>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-maven-plugin</artifactId>
+				<configuration>
+					<!-- JDK 11+/17： -->
+					<jvmArguments>
+					-Xms2g -Xmx2g -XX:+UseG1GC
+					-Xlog:gc*,safepoint:file=./gc-logs/gc-%p.log:time,uptime,level,tags:filecount=5,filesize=50M
+					</jvmArguments>
+
+					<!-- JDK 8（如用它就把上面注释掉，用这一组）： -->
+					<!--
+					<jvmArguments>
+					-Xms2g -Xmx2g -XX:+UseG1GC
+					-XX:+PrintGCDetails -XX:+PrintGCDateStamps -XX:+PrintGCApplicationStoppedTime
+					-Xloggc:./gc-logs/gc-%t.log -XX:+UseGCLogFileRotation -XX:NumberOfGCLogFiles=5 -XX:GCLogFileSize=50M
+					</jvmArguments>
+					-->
+				</configuration>
+				</plugin>
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>

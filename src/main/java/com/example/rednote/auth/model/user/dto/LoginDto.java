@@ -1,7 +1,7 @@
-package com.example.rednote.auth.security.model;
-
+package com.example.rednote.auth.model.user.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -14,9 +14,10 @@ import io.swagger.v3.oas.annotations.media.Schema;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class LoginUser implements Serializable {
+public class LoginDto implements Serializable {
 
     @Id
+    @Positive
     private Long id;
     @Schema(description = "用户名", example = "zhangsan")
     @NotBlank
@@ -27,3 +28,4 @@ public class LoginUser implements Serializable {
     @Size(min = 6, max = 20)
     private String password;
 }
+
