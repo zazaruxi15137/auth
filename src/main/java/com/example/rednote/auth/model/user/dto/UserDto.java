@@ -1,6 +1,7 @@
 package com.example.rednote.auth.model.user.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Positive;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -16,6 +17,7 @@ import jakarta.persistence.Id;
 @NoArgsConstructor
 public class UserDto implements Serializable {
     @Id
+    @Positive
     private Long id;
 
     @NotBlank

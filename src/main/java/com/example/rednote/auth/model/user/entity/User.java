@@ -1,13 +1,8 @@
 package com.example.rednote.auth.model.user.entity;
 
 import java.io.Serializable;
-
 import org.hibernate.annotations.Comment;
-import org.hibernate.resource.jdbc.LogicalConnection;
-
 import com.example.rednote.auth.model.user.dto.UserDto;
-import com.example.rednote.auth.security.model.LoginUser;
-
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
@@ -65,13 +60,5 @@ public class User implements Serializable {
         userDto.setRoles(this.roles);
         return userDto;
     }
-    public LoginUser toLoginUserDto() {
-        LoginUser loginUserDto = new LoginUser();
-        loginUserDto.setId(this.id);
-        loginUserDto.setUsername(this.username);
-        loginUserDto.setPassword(this.password);
-        return loginUserDto;
-    }
-
     // Getters and Setters
 }
