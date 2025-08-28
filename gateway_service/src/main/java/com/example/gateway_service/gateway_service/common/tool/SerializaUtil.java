@@ -1,0 +1,25 @@
+package com.example.gateway_service.gateway_service.common.tool;
+
+import java.util.List;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+
+
+public class SerializaUtil {
+    
+private static final ObjectMapper objectMapper = new ObjectMapper();
+
+public static String toJson(Object obj) throws JsonProcessingException {
+    return objectMapper.writeValueAsString(obj);
+}
+
+public static <T> T fromJson(String json, Class<T> clazz) throws JsonProcessingException {
+    return objectMapper.readValue(json, clazz);
+
+}
+public static <T> List<T> fromJson(String json, TypeReference<List<T>> clazz) throws JsonProcessingException {
+    return objectMapper.readValue(json, clazz);
+}
+}

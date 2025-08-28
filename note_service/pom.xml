@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<parent>
+        <groupId>com.example.rednote</groupId>
+		<artifactId>rednote_parent</artifactId>
+        <version>1.0.0-SNAPSHOT</version>    </parent>
+
+	<artifactId>note_service</artifactId>
+	<packaging>jar</packaging>
+
+
+	<dependencies>
+        <!-- 原来的依赖直接保留，无需声明 Spring Boot BOM -->
+        <!-- 如 spring-boot-starter-security、redis、jjwt、grpc-server 等 -->
+		 <!-- <dependency>
+			<groupId>com.example.rednote</groupId>
+			<artifactId>common-lib</artifactId>
+		</dependency> -->
+
+		<dependency>
+			<groupId>com.example.rednote</groupId>
+			<artifactId>common_lib</artifactId>
+			<version>${note.version}</version>
+		</dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- 原有 plugins 可保留（如 protobuf、spring-boot-maven-plugin） -->
+        </plugins>
+    </build>
+	
+</project>

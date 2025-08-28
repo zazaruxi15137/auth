@@ -36,3 +36,8 @@ build/
 *.jpg
 
 *.log
+.gitignore
+.gitAttributes
+.mvn/
+mvnw
+mvnw.cmd
